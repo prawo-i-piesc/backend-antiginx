@@ -7,8 +7,8 @@
 *.out
 
 # Plik wykonywalny z budowania (użyjemy np. nazwy 'api' i 'worker')
-api
-worker
+/api
+/worker
 
 # Archiwa testowe
 *.test
