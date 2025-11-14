@@ -1,0 +1,29 @@
+# Pliki binarne
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.out
+
+# Plik wykonywalny z budowania (użyjemy np. nazwy 'api' i 'worker')
+/api
+/worker
+
+# Archiwa testowe
+*.test
+
+# Foldery systemowe
+.DS_Store
+*._*
+
+# Foldery IDE
+.idea/
+.vscode/
+
+# Zmienne środowiskowe
+.env
+*.env
+
+# Pliki tymczasowe Go
+go.work
