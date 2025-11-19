@@ -1,0 +1,11 @@
+addReviewers: true
+addAssignees: author
+
+reviewers:
+  - pajojeku
+  - Kogut01
+  - MichalPlatosz1
+  - Obvinimus
+  - Mailosz0812
+
+numberOfReviewers: 4
