@@ -1,0 +1,27 @@
+name: Labels Management
+run-name: >-
+    ${{ 
+        github.event_name == 'pull_request' 
+        && format('Manage Labels for PR #{0} -> {1}', github.event.number, github.event.pull_request.title) 
+    }}
+
+on:
+    pull_request:
+        types: [opened, reopened]
+
+permissions:
+    contents: read
+    issues: write
+    pull-requests: write
+
+jobs:
+    label-management:
+        name: Labels Management - autoadd
+
+        runs-on: ubuntu-latest
+
+        steps:
+        - uses: TimonVS/pr-labeler-action@v5
+          with:
+            repo-token: ${{ secrets.GITHUB_TOKEN }}
+            configuration-path: .github/config.labels-autoadd.yml
