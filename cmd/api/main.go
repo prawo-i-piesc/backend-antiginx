@@ -34,7 +34,7 @@ func main() {
 	}
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
-	if err := db.AutoMigrate(&models.Scan{}); err != nil {
+	if err := db.AutoMigrate(&models.Scan{}, &models.ScanResult{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	scanHandler := handlers.NewScanHandler(ch)
+	scanHandler := handlers.NewScanHandler(ch, db)
 
 	router := api.NewRouter(scanHandler)
 
