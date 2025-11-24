@@ -2,23 +2,44 @@ package main
 
 import (
 	"log"
-	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/prawo-i-piesc/backend/internal/api"
+	"github.com/prawo-i-piesc/backend/internal/handlers"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
-	log.Println("Uruchamiam serwer API...")
+	log.Println("Starting API server...")
 
-	r := gin.Default()
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	if err != nil {
+		log.Fatalf("Could not connect to RabbitMQ: %v", err)
+	}
+	defer conn.Close()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "OK",
-		})
-	})
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Could not open channel: %v", err)
+	}
+	defer ch.Close()
 
-	if err := r.Run(":8080"); err != nil {
-		log.Fatalf("Nie można uruchomić serwera: %v", err)
+	_, err = ch.QueueDeclare(
+		"scan_queue", // name
+		true,         // durable
+		false,        // delete when unused
+		false,        // exclusive
+		false,        // no-wait
+		nil,          // arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
+	scanHandler := handlers.NewScanHandler(ch)
+
+	router := api.NewRouter(scanHandler)
+
+	if err := router.Run(":8080"); err != nil {
+		log.Fatalf("Could not start server: %v", err)
 	}
 }
