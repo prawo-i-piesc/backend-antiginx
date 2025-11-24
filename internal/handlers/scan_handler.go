@@ -59,7 +59,9 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 
 	newScanID, err := uuid.NewV7()
 	if err != nil {
-		newScanID = uuid.New()
+		log.Printf("Failed to generate UUIDv7: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate scan ID"})
+		return
 	}
 
 	newScan := models.Scan{
