@@ -11,6 +11,7 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	public := r.Group("/api")
 	{
 		public.POST("/scans", scanHandler.HandleScanSubmission)
+		public.POST("/results", scanHandler.HandleResultSubmission)
 	}
 
 	return r

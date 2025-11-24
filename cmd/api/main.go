@@ -9,17 +9,17 @@ import (
 )
 
 func main() {
-	log.Println("Uruchamiam serwer API...")
+	log.Println("Starting API server...")
 
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
-		log.Fatalf("Nie udało się połączyć z RabbitMQ: %v", err)
+		log.Fatalf("Could not connect to RabbitMQ: %v", err)
 	}
 	defer conn.Close()
 
 	ch, err := conn.Channel()
 	if err != nil {
-		log.Fatalf("Nie udało się otworzyć kanału: %v", err)
+		log.Fatalf("Could not open channel: %v", err)
 	}
 	defer ch.Close()
 
@@ -40,6 +40,6 @@ func main() {
 	router := api.NewRouter(scanHandler)
 
 	if err := router.Run(":8080"); err != nil {
-		log.Fatalf("Nie można uruchomić serwera: %v", err)
+		log.Fatalf("Could not start server: %v", err)
 	}
 }
