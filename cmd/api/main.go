@@ -3,14 +3,15 @@ package main
 import (
 	"log"
 
-	"context"
 	"os"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	"github.com/prawo-i-piesc/backend/internal/api"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/internal/models"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -18,17 +19,24 @@ func main() {
 		log.Fatalf("Info: Nie znaleziono pliku .env")
 	}
 	log.Println("Uruchamiam serwer API...")
-	conn_postgresql, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
+	dsn := os.Getenv("DATABASE_URL")
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Nie udało się połączyć z bazą danych: %v", err)
 	}
-	defer conn_postgresql.Close(context.Background())
-	var version string
-	if err := conn_postgresql.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
-		log.Fatalf("Nie udało się wykonać zapytania: %v", err)
-	}
 
-	log.Println("Połączono z:", version)
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Błąd podczas pobierania instancji DB: %v", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		log.Fatalf("Błąd pingowania bazy danych: %v", err)
+	}
+	log.Println("Połączono z bazą danych przy użyciu GORM")
+
+	if err := db.AutoMigrate(&models.Scan{}); err != nil {
+		log.Fatalf("Nie udało się wykonać migracji: %v", err)
+	}
 
 	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
 	if err != nil {
