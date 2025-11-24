@@ -116,4 +116,5 @@ func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
 	//TODO: DATABASE UPDATE LOGIC HERE
 	log.Printf("Received results for Scan ID: %s, Status: %s, Results Count: %d\n", req.ScanID, req.Status, len(req.Results))
 
+	c.JSON(http.StatusOK, gin.H{"message": "Results received"})
 }
