@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -147,6 +148,13 @@ func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
 	}
 
 	err = h.db.Transaction(func(tx *gorm.DB) error {
+		var existingScan models.Scan
+		if err := tx.First(&existingScan, "id = ?", scanUUID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return fmt.Errorf("scan not found")
+			}
+			return err
+		}
 
 		if err := tx.Create(&newResults).Error; err != nil {
 			return err
@@ -165,6 +173,10 @@ func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("Transaction failed: %v", err)
+		if err.Error() == "scan not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scan not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save results and update scan status"})
 		return
 	}
