@@ -12,6 +12,7 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	{
 		public.POST("/scans", scanHandler.HandleScanSubmission)
 		public.POST("/results", scanHandler.HandleResultSubmission)
+		public.GET("/scans/:id", scanHandler.HandleGetScan)
 	}
 
 	return r

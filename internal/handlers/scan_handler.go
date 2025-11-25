@@ -10,15 +10,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"gorm.io/gorm"
 )
 
 type ScanHandler struct {
 	amqpChannel *amqp.Channel
+	db          *gorm.DB
 }
 
-func NewScanHandler(ch *amqp.Channel) *ScanHandler {
+func NewScanHandler(ch *amqp.Channel, db *gorm.DB) *ScanHandler {
 	return &ScanHandler{
 		amqpChannel: ch,
+		db:          db,
 	}
 }
 
@@ -71,6 +74,13 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 
+	result := h.db.Create(&newScan)
+	if result.Error != nil {
+		log.Printf("Failed to create scan in DB: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create scan"})
+		return
+	}
+
 	task := ScanTaskMessage{
 		ID:        newScan.ID.String(),
 		TargetURL: newScan.TargetURL,
@@ -115,8 +125,72 @@ func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
 		return
 	}
 
-	//TODO: DATABASE UPDATE LOGIC HERE
-	log.Printf("Received results for Scan ID: %s, Status: %s, Results Count: %d\n", req.ScanID, req.Status, len(req.Results))
+	scanUUID, err := uuid.Parse(req.ScanID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Scan ID format"})
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Results received"})
+	newResults := make([]models.ScanResult, len(req.Results))
+	for i, result := range req.Results {
+		newResults[i] = models.ScanResult{
+			ScanID:      scanUUID,
+			TestID:      result.TestID,
+			TestName:    result.TestName,
+			Category:    result.Category,
+			Severity:    result.Severity,
+			Passed:      result.Passed,
+			Message:     result.Message,
+			Reference:   result.Reference,
+			Remediation: result.Remediation,
+		}
+	}
+
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+
+		if err := tx.Create(&newResults).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.Scan{ID: scanUUID}).Updates(map[string]interface{}{
+			"status":       req.Status,
+			"started_at":   req.StartedAt,
+			"completed_at": req.CompletedAt,
+		}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("Transaction failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save results and update scan status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Results received and scan updated"})
+}
+
+func (h *ScanHandler) HandleGetScan(c *gin.Context) {
+	scanIDParam := c.Param("id")
+	scanUUID, err := uuid.Parse(scanIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Scan ID format"})
+		return
+	}
+
+	var scan models.Scan
+	result := h.db.Preload("Results").First(&scan, "id = ?", scanUUID)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scan not found"})
+		} else {
+			log.Printf("Failed to retrieve scan: %v", result.Error)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve scan"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, scan)
 }
