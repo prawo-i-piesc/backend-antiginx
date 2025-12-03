@@ -6,7 +6,6 @@ WORKDIR /app
 # Copy the Go module files
 COPY go.mod ./
 COPY go.sum ./
-COPY main.go ./
 
 # Download the Go module dependencies
 RUN go mod download
@@ -14,7 +13,8 @@ RUN go mod download
 COPY . .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /backend-antiginx
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o /backend-antiginx
 
 
 # Final stage: a minimal image to run the application
@@ -25,5 +25,4 @@ WORKDIR /app
 # Copy the application executable from the build image
 COPY --from=build /backend-antiginx ./
 
-EXPOSE 8080
 CMD ["./backend-antiginx"]
