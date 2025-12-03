@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy the Go module files
 COPY go.mod ./
+COPY go.sum ./
 COPY main.go ./
 
 # Download the Go module dependencies
