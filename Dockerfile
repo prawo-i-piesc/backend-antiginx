@@ -25,4 +25,5 @@ WORKDIR /app
 # Copy the application executable from the build image
 COPY --from=build /backend-antiginx ./
 
+EXPOSE 8080
 CMD ["./backend-antiginx"]
