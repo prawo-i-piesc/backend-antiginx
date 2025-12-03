@@ -16,7 +16,7 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Info: Nie znaleziono pliku .env")
+		log.Println("Info: Nie znaleziono pliku .env, używam zmiennych środowiskowych")
 	}
 	log.Println("Uruchamiam serwer API...")
 	dsn := os.Getenv("DATABASE_URL")

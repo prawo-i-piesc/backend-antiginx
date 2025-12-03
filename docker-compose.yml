@@ -1,0 +1,26 @@
+services:
+  backend-antiginx:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: backend-antiginx
+    restart: unless-stopped
+
+    ports:
+      - "${BACKEND_PORT}:8080"
+
+    volumes:
+      - type: volume
+        source: backend-antiginx-data
+        target: /var/lib/antiginx/data
+        volume:
+          nocopy: true
+
+    env_file:
+      - .env
+
+    mem_limit: 4096m
+
+volumes:
+  backend-antiginx-data:
