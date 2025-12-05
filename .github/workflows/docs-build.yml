@@ -1,0 +1,48 @@
+name: Generate Documentation on GitHub Pages
+run-name: >-
+    ${{ 
+        github.event_name == 'push' 
+        && format('Generate Docs for Merge -> {0} ', github.event.head_commit.message) 
+    }} 
+
+permissions:
+    contents: write
+
+on:
+    push:
+        branches: [ "main" ]
+
+jobs:
+    generate-docs:
+        name: Generating documentation
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout repository
+          uses: actions/checkout@v5
+
+        - name: Set up Go
+          uses: actions/setup-go@v4
+          with:
+            go-version-file: 'go.mod'
+
+        - name: Set up Python
+          uses: actions/setup-python@v6
+          with:
+            python-version: '3.14'
+
+        - name: Install dependencies
+          run: |
+            go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+            pip install mkdocs-material mkdocs-git-revision-date-localized-plugin mkdocs-include-markdown-plugin
+
+        - name: Generate documentation
+          run: |
+            gomarkdoc --include-unexported --output 'docs/{{.Dir}}/index.md' ./internal/...
+            gomarkdoc --include-unexported --output 'docs/main/index.md' ./
+
+        - name: Deploy to GitHub Pages
+          run: |
+            git config user.name "GitHub Actions Bot"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            mkdocs gh-deploy --force
