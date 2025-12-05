@@ -1,3 +1,7 @@
+// Package api provides HTTP routing configuration for the backend-antiginx service.
+//
+// This package defines the API routes and their mappings to handler functions
+// using the Gin web framework.
 package api
 
 import (
@@ -5,6 +9,25 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 )
 
+// NewRouter creates and configures a new Gin router with all API endpoints.
+//
+// The router exposes the following public endpoints under /api prefix:
+//
+//   - POST /api/scans    - Submit a new security scan request
+//   - POST /api/results  - Submit scan results from a worker
+//   - GET  /api/scans/:id - Retrieve scan details and results by ID
+//
+// Parameters:
+//   - scanHandler: Handler instance containing business logic for scan operations
+//
+// Returns:
+//   - *gin.Engine: Configured Gin router ready to serve HTTP requests
+//
+// Example:
+//
+//	handler := handlers.NewScanHandler(amqpChannel, db)
+//	router := api.NewRouter(handler)
+//	router.Run(":8080")
 func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	r := gin.Default()
 
