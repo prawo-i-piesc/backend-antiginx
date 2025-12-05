@@ -1,6 +1,6 @@
 # 🛡️ Backend-AntiGinx
 
-## About Project
+## About the Project
 
 Backend-AntiGinx is the REST API server for the AntiGinx security scanning platform. Built with Go and the Gin framework, it provides endpoints for submitting security scan requests, processing results from worker services, and retrieving scan data. The service uses PostgreSQL for data persistence and RabbitMQ for asynchronous task distribution to scan workers.
 
