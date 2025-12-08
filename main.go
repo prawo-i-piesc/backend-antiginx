@@ -1,3 +1,21 @@
+// Package main provides the entry point for the backend-antiginx API server.
+//
+// The server connects to PostgreSQL database and RabbitMQ message broker,
+// performs database migrations, and starts an HTTP server for handling
+// security scan requests.
+//
+// # Environment Variables
+//
+// The following environment variables are required:
+//
+//   - DATABASE_URL: PostgreSQL connection string (e.g., postgres://user:pass@host:5432/db)
+//   - RABBITMQ_URL: RabbitMQ connection string (e.g., amqp://user:pass@host:5672/)
+//
+// # Example
+//
+// To run the server:
+//
+//	DATABASE_URL="postgres://..." RABBITMQ_URL="amqp://..." go run main.go
 package main
 
 import (
@@ -14,6 +32,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// main initializes and starts the backend-antiginx API server.
+//
+// It performs the following steps:
+//  1. Loads environment variables from .env file (optional)
+//  2. Establishes connection to PostgreSQL database
+//  3. Runs database migrations for Scan and ScanResult models
+//  4. Connects to RabbitMQ and declares the scan_queue
+//  5. Initializes HTTP handlers and starts the server on port 8080
+//
+// The function will terminate with a fatal error if any critical
+// initialization step fails (database connection, RabbitMQ connection, etc.)
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("Info: Nie znaleziono pliku .env, używam zmiennych środowiskowych")
