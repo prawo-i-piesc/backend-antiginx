@@ -40,7 +40,13 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	// Note: AllowCredentials requires specific origins, not AllowAllOrigins
 	allowedOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
 	if corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); corsOrigins != "" {
-		allowedOrigins = strings.Split(corsOrigins, ",")
+		origins := strings.Split(corsOrigins, ",")
+		allowedOrigins = make([]string, 0, len(origins))
+		for _, origin := range origins {
+			if trimmed := strings.TrimSpace(origin); trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
 	}
 
 	r.Use(cors.New(cors.Config{
