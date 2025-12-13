@@ -5,6 +5,9 @@
 package api
 
 import (
+	"time"
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 )
@@ -30,6 +33,18 @@ import (
 //	router.Run(":8080")
 func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	r := gin.Default()
+
+	// TODO : Ograniczyć domeny w produkcji
+	r.Use(cors.New(cors.Config{
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	public := r.Group("/api")
 	{
