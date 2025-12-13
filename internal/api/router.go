@@ -34,9 +34,10 @@ import (
 func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	r := gin.Default()
 
-	// TODO : Ograniczyć domeny w produkcji
+	// Configure CORS for frontend communication
+	// Note: AllowCredentials requires specific origins, not AllowAllOrigins
 	r.Use(cors.New(cors.Config{
-		AllowAllOrigins:  true,
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
