@@ -5,6 +5,8 @@
 package api
 
 import (
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -36,8 +38,13 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 
 	// Configure CORS for frontend communication
 	// Note: AllowCredentials requires specific origins, not AllowAllOrigins
+	allowedOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
+	if corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); corsOrigins != "" {
+		allowedOrigins = strings.Split(corsOrigins, ",")
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
