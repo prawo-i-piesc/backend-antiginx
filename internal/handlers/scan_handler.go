@@ -149,6 +149,26 @@ func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
 		return
 	}
 
+	if req.Result.Name == "" {
+		now := time.Now()
+
+		err := h.db.Model(&models.Scan{ID: scanUUID}).
+			Updates(map[string]interface{}{
+				"status":       "COMPLETED",
+				"completed_at": &now,
+			}).Error
+
+		if err != nil {
+			log.Printf("Failed to complete scan %s: %v", scanUUID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scan status"})
+			return
+		}
+
+		log.Printf("Scan %s completed successfully", scanUUID)
+		c.JSON(http.StatusOK, gin.H{"message": "Scan completed"})
+		return
+	}
+
 	metaJSON, _ := json.Marshal(req.Result.Metadata)
 
 	passed := req.Result.ThreatLevel == "None" || req.Result.ThreatLevel == "Info"
