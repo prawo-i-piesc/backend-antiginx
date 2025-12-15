@@ -12,18 +12,22 @@ RUN go mod download
 
 COPY . .
 
-# Build
+# Build - TARGETARCH is automatically set by Docker Buildx for multi-arch builds
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o /backend-antiginx
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o /backend-antiginx .
 
 
 # Final stage: a minimal image to run the application
 FROM alpine:latest AS run
 
-WORKDIR /app
+# Install ca-certificates for HTTPS connections
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
 
 # Copy the application executable from the build image
-COPY --from=build /backend-antiginx ./
+COPY --from=build /backend-antiginx /backend-antiginx
 
-EXPOSE 8080
-CMD ["./backend-antiginx"]
+# Document the port used by the application
+EXPOSE 4000
+CMD ["/backend-antiginx"]

@@ -1,16 +1,22 @@
 services:
   backend-antiginx:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/prawo-i-piesc/backend-antiginx:latest
 
-    container_name: backend-antiginx
+    container_name: backend
     restart: unless-stopped
 
     ports:
-      - "${BACKEND_PORT}:8080"
+      - "${BACKEND_PORT}:4000"
 
-    env_file:
-      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
 
     mem_limit: 2048m
+
+    networks:
+      - vpn-net
+
+networks:
+  vpn-net:
+    external: true
