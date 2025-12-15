@@ -95,7 +95,7 @@ func main() {
 
 	router := api.NewRouter(scanHandler)
 
-	if err := router.Run(":8080"); err != nil {
+	if err := router.Run(":4000"); err != nil {
 		log.Fatalf("Could not start server: %v", err)
 	}
 }
