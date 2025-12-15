@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "${BACKEND_PORT}:8080"
+      - "${BACKEND_PORT}:4000"
 
     environment:
       - DATABASE_URL=${DATABASE_URL}
