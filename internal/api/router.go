@@ -59,7 +59,7 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 			return
 		}
 		c.Header("X-Frame-Options", "DENY")
-		c.Header("Content-Security-Policy", "default-src 'none'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data:; style-src * 'unsafe-inline';frame-ancestors 'none'; sandbox")
+		c.Header("Content-Security-Policy", "default-src 'none'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data:; style-src * 'unsafe-inline'; frame-ancestors 'none';")
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		c.Header("Referrer-Policy", "no-referrer")
 		c.Header("X-Content-Type-Options", "nosniff")
