@@ -69,7 +69,7 @@ type ScanTaskMessage struct {
 }
 
 func (h *ScanHandler) HandleHealthCheck(c *gin.Context) {
-	c.JSON(200, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "Running...",
 	})
 }
