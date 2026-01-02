@@ -68,6 +68,12 @@ type ScanTaskMessage struct {
 	TargetURL string `json:"target_url"`
 }
 
+func (h *ScanHandler) HandleHealthCheck(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"message": "Running...",
+	})
+}
+
 func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 	var req CreateScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

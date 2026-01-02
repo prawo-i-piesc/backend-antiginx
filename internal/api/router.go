@@ -5,6 +5,10 @@
 package api
 
 import (
+	"net/http"
+	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -34,6 +38,9 @@ import (
 func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	r := gin.Default()
 
+	hostsEnv := os.Getenv("ALLOWED_HOSTS")
+	allowedHosts := strings.Split(hostsEnv, ",")
+
 	// TODO : Ograniczyć domeny w produkcji
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
@@ -46,11 +53,26 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	r.Use(func(c *gin.Context) {
+		if !slices.Contains(allowedHosts, c.Request.Host) {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid host header"})
+			return
+		}
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Content-Security-Policy", "default-src 'none'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data:; style-src * 'unsafe-inline';frame-ancestors 'none'; sandbox")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		c.Header("Referrer-Policy", "no-referrer")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("Permissions-Policy", "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()")
+		c.Next()
+	})
+
 	public := r.Group("/api")
 	{
 		public.POST("/scans", scanHandler.HandleScanSubmission)
 		public.POST("/results", scanHandler.HandleResultSubmission)
 		public.GET("/scans/:id", scanHandler.HandleGetScan)
+		public.GET("/health", scanHandler.HandleHealthCheck)
 	}
 
 	return r
