@@ -11,6 +11,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - RABBITMQ_URL=${RABBITMQ_URL}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
 
     mem_limit: 2048m
 
