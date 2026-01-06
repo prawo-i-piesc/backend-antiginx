@@ -92,8 +92,9 @@ func main() {
 	}
 
 	scanHandler := handlers.NewScanHandler(ch, db)
+	authHandler := handlers.NewAuthHandler(db)
 
-	router := api.NewRouter(scanHandler)
+	router := api.NewRouter(scanHandler, authHandler)
 
 	if err := router.Run(":4000"); err != nil {
 		log.Fatalf("Could not start server: %v", err)
