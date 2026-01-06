@@ -63,6 +63,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		public.GET("/scans/:id", scanHandler.HandleGetScan)
 		public.GET("/health", scanHandler.HandleHealthCheck)
 		public.POST("/auth/register", authHandler.Register)
+		public.POST("/auth/login", authHandler.Login)
 	}
 
 	return r

@@ -63,7 +63,7 @@ func main() {
 	}
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
-	if err := db.AutoMigrate(&models.Scan{}, &models.ScanResult{}); err != nil {
+	if err := db.AutoMigrate(&models.Scan{}, &models.ScanResult{}, &models.User{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 

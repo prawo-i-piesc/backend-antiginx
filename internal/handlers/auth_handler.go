@@ -22,6 +22,11 @@ type RegisterRequest struct {
 	Password string `json:"password" binding:"required,min=8"`
 }
 
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8"`
+}
+
 func NewAuthHandler(db *gorm.DB) *AuthHandler {
 	return &AuthHandler{
 		db: db,
@@ -81,4 +86,35 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User registered successfully",
 	})
+}
+
+func (h *AuthHandler) Login(c *gin.Context) {
+	var req LoginRequest
+	var existingUser models.User
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Binding error: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result := h.db.Where("email = ?", req.Email).First(&existingUser)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	err := bcrypt.CompareHashAndPassword(existingUser.Password, []byte(req.Password))
+
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": "tutaj_bedzie_jwt"})
+
 }
