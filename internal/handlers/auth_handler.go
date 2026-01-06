@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"golang.org/x/crypto/bcrypt"
@@ -31,6 +34,29 @@ func NewAuthHandler(db *gorm.DB) *AuthHandler {
 	return &AuthHandler{
 		db: db,
 	}
+}
+
+func (h *AuthHandler) GenerateToken(userID string) (string, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		return "", errors.New("JWT_SECRET is not defined in environment variables")
+	}
+
+	claims := jwt.MapClaims{
+		"sub": userID,
+		"exp": time.Now().Add(time.Hour * 1).Unix(),
+		"iat": time.Now().Unix(),
+		"iss": "backend-antiginx",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	signedToken, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return "", err
+	}
+
+	return signedToken, nil
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -115,6 +141,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": "tutaj_bedzie_jwt"})
+	token, err := h.GenerateToken(existingUser.ID.String())
+	if err != nil {
+		log.Printf("Failed to generate token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":      token,
+		"expires_in": 3600,
+	})
 
 }
