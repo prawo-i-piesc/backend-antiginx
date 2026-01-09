@@ -63,7 +63,7 @@ func main() {
 	}
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
-	if err := db.AutoMigrate(&models.Scan{}, &models.ScanResult{}); err != nil {
+	if err := db.AutoMigrate(&models.Scan{}, &models.ScanResult{}, &models.User{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 
@@ -92,8 +92,9 @@ func main() {
 	}
 
 	scanHandler := handlers.NewScanHandler(ch, db)
+	authHandler := handlers.NewAuthHandler(db)
 
-	router := api.NewRouter(scanHandler)
+	router := api.NewRouter(scanHandler, authHandler)
 
 	if err := router.Run(":4000"); err != nil {
 		log.Fatalf("Could not start server: %v", err)

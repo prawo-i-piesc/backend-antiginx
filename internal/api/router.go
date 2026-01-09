@@ -5,15 +5,12 @@
 package api
 
 import (
-	"net/http"
-	"os"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/middleware"
 )
 
 // NewRouter creates and configures a new Gin router with all API endpoints.
@@ -35,11 +32,8 @@ import (
 //	handler := handlers.NewScanHandler(amqpChannel, db)
 //	router := api.NewRouter(handler)
 //	router.Run(":8080")
-func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler) *gin.Engine {
 	r := gin.Default()
-
-	hostsEnv := os.Getenv("ALLOWED_HOSTS")
-	allowedHosts := strings.Split(hostsEnv, ",")
 
 	// TODO : Ograniczyć domeny w produkcji
 	r.Use(cors.New(cors.Config{
@@ -54,10 +48,6 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 	}))
 
 	r.Use(func(c *gin.Context) {
-		if !slices.Contains(allowedHosts, c.Request.Host) {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid host header"})
-			return
-		}
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Content-Security-Policy", "default-src 'none'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data:; style-src * 'unsafe-inline'; frame-ancestors 'none';")
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -73,6 +63,13 @@ func NewRouter(scanHandler *handlers.ScanHandler) *gin.Engine {
 		public.POST("/results", scanHandler.HandleResultSubmission)
 		public.GET("/scans/:id", scanHandler.HandleGetScan)
 		public.GET("/health", scanHandler.HandleHealthCheck)
+		public.POST("/auth/register", authHandler.Register)
+		public.POST("/auth/login", authHandler.Login)
+	}
+
+	protected := r.Group("/api")
+	protected.Use(middleware.RequireAuth())
+	{
 	}
 
 	return r
