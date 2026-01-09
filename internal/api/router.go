@@ -10,6 +10,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/middleware"
 )
 
 // NewRouter creates and configures a new Gin router with all API endpoints.
@@ -64,6 +65,11 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		public.GET("/health", scanHandler.HandleHealthCheck)
 		public.POST("/auth/register", authHandler.Register)
 		public.POST("/auth/login", authHandler.Login)
+	}
+
+	protected := r.Group("/api")
+	protected.Use(middleware.RequireAuth())
+	{
 	}
 
 	return r
