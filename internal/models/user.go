@@ -11,5 +11,5 @@ type User struct {
 	FullName  string    `json:"full_name"`
 	Email     string    `gorm:"uniqueIndex; not null" json:"email"`
 	CreatedAt time.Time `json:"created_at"`
-	Password  []byte    `json:"password"`
+	Password  []byte    `json:"-"`
 }
