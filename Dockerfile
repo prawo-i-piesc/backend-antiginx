@@ -30,10 +30,11 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 # Copy the application executable from the build image
-COPY --from=build /backend-antiginx /backend-antiginx
+COPY --from=build --chown=appuser:appgroup /backend-antiginx /backend-antiginx
 
 # Set ownership and switch to non-root user
 RUN chown -R appuser:appgroup /backend-antiginx
+
 USER appuser
 
 # Document the port used by the application
