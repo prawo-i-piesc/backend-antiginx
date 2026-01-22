@@ -1,0 +1,58 @@
+name: PR Automation
+run-name: >-
+    ${{ 
+        github.event_name == 'pull_request' 
+        && format('Pull Request Automation #{0} -> {1}', github.event.number, github.event.pull_request.title)
+    }}
+
+on:
+    pull_request:
+        types: [opened, reopened]
+
+permissions:
+    statuses: read
+    contents: read
+    issues: write
+    pull-requests: write
+
+jobs:
+    pr-automation:
+        name: Configure Metadata
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+
+        steps:
+        - name: 👤 Git -- Assign Reviewers and Author
+          uses: kentaro-m/auto-assign-action@v2.0.1
+          with:
+            configuration-path: '.github/config.assign.yml'
+
+        - name: 🏷️ Git -- Apply Labels
+          uses: TimonVS/pr-labeler-action@v5
+          with:
+            repo-token: ${{ secrets.GITHUB_TOKEN }}
+            configuration-path: .github/config.labels.yml
+
+        - name: 🚩 Git -- Set Milestone
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GH_REPO: ${{ github.repository }}
+            PR_URL: ${{ github.event.pull_request.html_url }}
+            BRANCH: ${{ github.head_ref }}
+
+          run: |
+            # 1. Get Issue ID from branch name (e.g. feat/123-my-feature)
+            ISSUE_ID=$(echo "$BRANCH" | grep -oE '(/|^)[0-9]+' | head -n 1 | tr -d '/')
+
+            # 2. Get Milestone name from Issue
+            MILESTONE=$(gh issue view "$ISSUE_ID" --json milestone --jq '.milestone.title // empty' 2>/dev/null || true)
+
+            # 3. If Milestone exists, set it in PR
+            if [ -n "$MILESTONE" ]; then
+                gh pr edit "$PR_URL" --milestone "$MILESTONE"
+                echo ""
+                echo "✅ Set milestone '$MILESTONE' from issue #$ISSUE_ID to PR #${{ github.event.number }}"
+            else
+                echo ""
+                echo "❌ No milestone found for issue #$ISSUE_ID. Skipping milestone assignment."
+            fi
