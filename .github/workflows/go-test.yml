@@ -1,0 +1,60 @@
+name: Go Verification
+run-name: >-
+    ${{ 
+        github.event_name == 'pull_request' 
+        && format('Go Verification for CI: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+    }}
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+permissions:
+    contents: read
+
+jobs:
+    go-ci-test:
+        name: Testing
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+
+        steps:
+        - name: 📥 Git -- Checkout repository
+          uses: actions/checkout@v6
+
+        - name: 📘 Go -- Set up
+          uses: actions/setup-go@v6
+          with:
+            go-version-file: 'go.mod'
+            cache: true
+
+        - name: 🧪 Go -- Test Module Integrity
+          run: |
+            echo "⚙️ Verifying Go module integrity..."
+            go mod tidy
+
+            echo "|"
+            echo "|"
+
+            echo "⚙️ Checking for uncommitted changes in go.mod and go.sum:"
+            if ! git diff --exit-code go.mod go.sum > /dev/null 2>&1 ; then
+                git diff --color=always go.mod go.sum
+                echo ""
+                echo "❌ go.mod or go.sum have uncommitted changes. Please run 'go mod tidy' and commit the changes."
+                exit 1
+            else
+                echo ""
+                echo "✅ go.mod and go.sum are up to date."
+            fi
+
+        - name: 🧪 Go -- Test Compilation
+          run: |
+            echo "⚙️ Verifying project compilation..."
+            if go build -v -o /dev/null ./...; then
+                echo ""
+                echo "✅ Compilation successful."
+            else
+                echo ""
+                echo "❌ Compilation failed. Please fix the errors above."
+                exit 1
+            fi

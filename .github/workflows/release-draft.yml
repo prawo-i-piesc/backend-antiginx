@@ -1,33 +1,35 @@
 name: Release Drafter
 run-name: >-
-    ${{ 
-        github.event_name == 'pull_request' 
-        && format('Manage Release Draft for PR #{0} -> {1}', github.event.number, github.event.pull_request.title) 
-        || 
-        github.event_name == 'push'
-        && format('Manage Release Draft for Merge -> {0}', github.event.head_commit.message) 
-    }}
+  ${{ 
+    github.event_name == 'pull_request' 
+    && format('Set up Release Draft: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+    || 
+    github.event_name == 'push'
+    && format('Update Release Draft: Merge -> {0}', github.event.head_commit.message)
+  }}
 
 on:
     push:
         branches: [ "main" ]
     pull_request:
-        types: [opened, reopened, synchronize]
+        types: [opened, synchronize, reopened]
 
 permissions:
     contents: read
 
 jobs:
-    release_draft:
-        name: Release Draft - autoadd
+    release-draft:
+        name: Update Draft
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
         permissions:
             contents: write
             pull-requests: write
 
-        runs-on: ubuntu-latest
-
         steps:
-        - uses: release-drafter/release-drafter@v6
+        - name: 📝 Release -- Update Draft Notes
+          uses: release-drafter/release-drafter@v6
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           with:
