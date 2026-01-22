@@ -1,0 +1,38 @@
+name: Lint Verification
+run-name: >-
+    ${{ 
+        github.event_name == 'pull_request' 
+        && format('Lint Verification for CI: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+    }}
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: "lint-verification"
+    cancel-in-progress: true
+
+jobs:
+    lint-ci-test:
+        name: Testing
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+
+        steps:
+        - name: 📥 Git -- Checkout repository
+          uses: actions/checkout@v6
+
+        - name: 📘 Go -- Set up
+          uses: actions/setup-go@v6
+          with:
+            go-version-file: 'go.mod'
+            cache: true
+
+        - name: 🧪 Go -- Test Lint
+          uses: golangci/golangci-lint-action@v9
+          with:
+            version: latest
