@@ -158,13 +158,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Access not authorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
 		return
 	}
 
 	userID, ok := userID.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Access not authorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
 		return
 	}
 
