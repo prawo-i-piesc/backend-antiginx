@@ -154,3 +154,35 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 
 }
+
+func (h *AuthHandler) Me(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Access not authorized"})
+		return
+	}
+
+	userID, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Access not authorized"})
+		return
+	}
+
+	var existingUser models.User
+	result := h.db.Where("id = ?", userID).First(&existingUser)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":        existingUser.ID,
+		"full_name": existingUser.FullName,
+		"email":     existingUser.Email,
+	})
+}
