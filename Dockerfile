@@ -17,7 +17,7 @@ ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o /backend-antiginx .
 
 # Final stage: a minimal image to run the application
-FROM alpine:3.21 AS run
+FROM alpine:3.23 AS run
 
 # Install ca-certificates
 RUN apk --no-cache upgrade && \
