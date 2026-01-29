@@ -71,13 +71,25 @@ func main() {
 	if err != nil {
 		log.Fatalf("Nie udało się połączyć z RabbitMQ: %v", err)
 	}
-	defer conn.Close()
+
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("Błąd podczas zamykania połączenia z RabbitMQ: %v", err)
+		} else {
+			log.Println("Połączenie z RabbitMQ zostało poprawnie zamknięte.")
+		}
+	}()
 
 	ch, err := conn.Channel()
 	if err != nil {
 		log.Fatalf("Nie udało się otworzyć kanału: %v", err)
 	}
-	defer ch.Close()
+
+	defer func() {
+		if err := ch.Close(); err != nil {
+			log.Printf("Błąd podczas zamykania kanału RabbitMQ: %v", err)
+		}
+	}()
 
 	_, err = ch.QueueDeclare(
 		"scan_queue", // name

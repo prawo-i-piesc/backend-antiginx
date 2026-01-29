@@ -70,6 +70,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	protected := r.Group("/api")
 	protected.Use(middleware.RequireAuth())
 	{
+		protected.GET("/auth/me", authHandler.Me)
 	}
 
 	return r
