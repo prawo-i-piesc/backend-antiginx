@@ -30,6 +30,16 @@ type CreateScanRequest struct {
 	TargetURL string `json:"target_url" binding:"required"`
 }
 
+type CommandParameter struct {
+	Name      string   `json:"Name"`
+	Arguments []string `json:"Arguments"`
+}
+
+type ScanTaskPayload struct {
+	Target     string             `json:"Target"`
+	Parameters []CommandParameter `json:"Parameters"`
+}
+
 type EngineTestResult struct {
 	Name        string      `json:"Name"`
 	Certainty   int         `json:"Certainty"`
@@ -73,7 +83,6 @@ func (h *ScanHandler) HandleHealthCheck(c *gin.Context) {
 		"message": "Running...",
 	})
 }
-
 func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 	var req CreateScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -102,12 +111,30 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 		return
 	}
 
-	task := struct {
-		ID        string `json:"id"`
-		TargetURL string `json:"target_url"`
-	}{
-		ID:        newScan.ID.String(),
-		TargetURL: newScan.TargetURL,
+	task := ScanTaskPayload{
+		Target: newScan.TargetURL,
+		Parameters: []CommandParameter{
+			{
+				Name: "--tests",
+				Arguments: []string{"https",
+					"hsts",
+					"serv-h-a",
+					"csp",
+					"cookie-sec",
+					"js-obf",
+					"xframe",
+					"permissions-policy",
+					"x-content-type-options",
+					"referrer-policy",
+					"cross-origin-x"},
+			},
+			{
+				Name: "--taskId",
+				Arguments: []string{
+					newScan.ID.String(),
+				},
+			},
+		},
 	}
 
 	jsonBytes, err := json.Marshal(task)
