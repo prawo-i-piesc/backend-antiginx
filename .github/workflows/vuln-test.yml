@@ -45,7 +45,7 @@ jobs:
             context: .
             push: false
             load: true
-            tags: ${{ github.repository }}:ci-test
+            tags: ${{ github.repository }}:pr-${{ github.event.pull_request.number }}-test
             cache-from: type=gha
             cache-to: type=gha,mode=max
 
@@ -61,21 +61,23 @@ jobs:
                 exit 1
             fi
 
-        - name: 🧪 Trivy -- Test Vulnerability -> File System
+        - name: 🧪 Trivy -- Test Vuln, Secret, Misconfig -> File System
           uses: aquasecurity/trivy-action@master
           with:
             scan-type: fs
             ignore-unfixed: true
+            scanners: vuln,secret,misconfig
             format: table
             severity: CRITICAL,HIGH,MEDIUM
             exit-code: '1'
 
-        - name: 🧪 Trivy -- Test Vulnerability -> Container Image
+        - name: 🧪 Trivy -- Test Vuln, Secret, Misconfig -> Container Image
           uses: aquasecurity/trivy-action@master
           with:
             scan-type: image
-            image-ref: ${{ github.repository }}:ci-test
+            image-ref: ${{ github.repository }}:pr-${{ github.event.pull_request.number }}-test
             ignore-unfixed: true
+            scanners: vuln,secret,misconfig
             vuln-type: os,library
             format: table
             severity: CRITICAL,HIGH,MEDIUM
