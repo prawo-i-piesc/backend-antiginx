@@ -3,17 +3,22 @@ run-name: >-
     ${{ 
         github.event_name == 'pull_request' 
         && format('Go Verification for CI: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+        ||
+        github.event_name == 'push'
+        && format('Go Verification for CI: Merge -> {0}', github.event.head_commit.message)
     }}
 
 on:
     pull_request:
         types: [opened, synchronize, reopened]
+    push:
+        branches: [ "main" ]
 
 permissions:
     contents: read
 
 concurrency:
-    group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+    group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-ref-{1}', github.workflow, github.ref) }}
     cancel-in-progress: true
 
 jobs:

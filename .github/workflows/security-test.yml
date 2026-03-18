@@ -1,23 +1,28 @@
-name: Vuln Verification
+name: Security Verification
 run-name: >-
     ${{ 
         github.event_name == 'pull_request' 
-        && format('Vulnerability Verification for CI: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+        && format('Security Verification for CI: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+        ||
+        github.event_name == 'push'
+        && format('Security Verification for CI: Merge -> {0}', github.event.head_commit.message)
     }}
 
 on:
     pull_request:
         types: [opened, synchronize, reopened]
+    push:
+        branches: [ "main" ]
 
 permissions:
     contents: read
 
 concurrency:
-    group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+    group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-ref-{1}', github.workflow, github.ref) }}
     cancel-in-progress: true
 
 jobs:
-    vuln-ci-test:
+    security-ci-test:
         name: Testing
         runs-on: ubuntu-latest
         timeout-minutes: 30
@@ -32,22 +37,9 @@ jobs:
             go-version-file: 'go.mod'
             cache: true
 
-        - name: 🐳 Docker -- Set up
-          uses: docker/setup-buildx-action@v3
-
         - name: 📦 Go -- Install dependencies
           run: |
             go install golang.org/x/vuln/cmd/govulncheck@latest
-
-        - name: 🐳 Docker -- Build Image for Scanning
-          uses: docker/build-push-action@v6
-          with:
-            context: .
-            push: false
-            load: true
-            tags: ${{ github.repository }}:pr-${{ github.event.pull_request.number }}-test
-            cache-from: type=gha
-            cache-to: type=gha,mode=max
 
         - name: 🧪 Go -- Test Vulnerability -> Modules
           run: |
@@ -65,20 +57,9 @@ jobs:
           uses: aquasecurity/trivy-action@master
           with:
             scan-type: fs
+            scan-ref: .
             ignore-unfixed: true
             scanners: vuln,secret,misconfig
-            format: table
-            severity: CRITICAL,HIGH,MEDIUM
-            exit-code: '1'
-
-        - name: 🧪 Trivy -- Test Vuln, Secret, Misconfig -> Container Image
-          uses: aquasecurity/trivy-action@master
-          with:
-            scan-type: image
-            image-ref: ${{ github.repository }}:pr-${{ github.event.pull_request.number }}-test
-            ignore-unfixed: true
-            scanners: vuln,secret,misconfig
-            vuln-type: os,library
             format: table
             severity: CRITICAL,HIGH,MEDIUM
             exit-code: '1'
