@@ -23,7 +23,7 @@ jobs:
 
         steps:
         - name: 👤 Git -- Assign Reviewers and Author
-          uses: kentaro-m/auto-assign-action@v2.0.1
+          uses: kentaro-m/auto-assign-action@v2.0.2
           with:
             configuration-path: '.github/config.assign.yml'
 
