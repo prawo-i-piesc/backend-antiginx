@@ -17,30 +17,31 @@ This guide shows how to test **backend-antiginx** directly from your terminal us
 
 
 ## ⚡ Quick Start
-Start backend first (so `curl` calls can work):
+
+### Set Environment Variables
 ```bash
 # from repository root
 cp .env.example .env
 ```
 
-Then edit `.env` and ensure these values are set:
+### Edit `.env` with credentials
 ```dotenv
 DATABASE_URL=postgres://user:password@localhost:5432/antiginx
 RABBITMQ_URL=amqp://user:password@localhost:5672/
 JWT_SECRET=super-secret-key
 ```
 
-Run the API:
+### Run API
 ```bash
 go run main.go
 ```
 
-Set API base URL:
+### Set API base URL
 ```bash
 export BASE_URL="http://localhost:4000/api"
 ```
 
-Quick health check:
+### Test Health Endpoint
 ```bash
 curl -s ${BASE_URL}/health
 ```

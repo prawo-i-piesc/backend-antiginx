@@ -16,12 +16,13 @@ Run **backend-antiginx** in a container without a local Go setup.
 
 
 ## Option A: Pre-built Image from GHCR
-Pull the latest image:
+
+### Pull the image
 ```bash
 docker pull ghcr.io/prawo-i-piesc/backend-antiginx:latest
 ```
 
-Run Backend Container
+### Run the container
 ```bash
 docker run -d \
   --name antiginx-backend \
@@ -37,12 +38,13 @@ docker run -d \
 
 
 ## Option B: Build Image Locally
-In the project directory:
+
+### Build the image
 ```bash
 docker build -t backend-antiginx:local .
 ```
 
-Run backend from local image:
+### Run the container
 ```bash
 docker run -d \
   --name antiginx-backend-local \

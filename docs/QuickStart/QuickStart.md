@@ -49,27 +49,28 @@ BACKEND_PORT=4000
 
 
 ## 🛠️ Quick Start Locally (Go)
-Clone the repo:
+
+### Clone the repo:
 ```bash
 git clone https://github.com/prawo-i-piesc/backend-antiginx.git
 ```
 
-Navigate to the project directory:
+### Navigate to the backend directory:
 ```bash
 cd backend-antiginx
 ```
 
-Set up your `.env` file (copy from `.env.example`):
+### Set environment variables:
 ```bash
 cp .env.example .env
 ```
 
-Run the application:
+### Run the application:
 ```bash
 go run main.go
 ```
 
-API starts on `:4000`. Quick check:
+### Test the health endpoint:
 ```bash
 curl http://localhost:4000/api/health
 ```
