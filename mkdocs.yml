@@ -1,6 +1,8 @@
-site_name: Backend-AntiGinx Documentation
+site_name: Backend-Antiginx Documentation
 repo_name: prawo-i-piesc/backend-antiginx
 repo_url: https://github.com/prawo-i-piesc/backend-antiginx
+site_url: https://prawo-i-piesc.github.io/backend-antiginx/
+strict: true
 
 theme:
   name: material
@@ -67,12 +69,18 @@ markdown_extensions:
       toc_depth: 2-4
 
 nav:
-  - Home: index.md
+  - Backend Antiginx: index.md
+  - Quick Start: 
+    - Quick Start: QuickStart/QuickStart.md
+    - CLI: QuickStart/CLI.md
+    - Docker: QuickStart/Docker.md
+    - Docker Compose: QuickStart/DockerCompose.md
   - Documentation:
     - Main: main/index.md
     - API: internal/api/index.md
     - Handlers: internal/handlers/index.md
     - Models: internal/models/index.md
+    - Middleware: middleware/index.md
 
 copyright: "Copyright &copy; 2025 Antiginx Team. All rights reserved."
 

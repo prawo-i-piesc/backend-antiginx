@@ -26,6 +26,8 @@ jobs:
         steps:
         - name: 📥 Git -- Checkout repository
           uses: actions/checkout@v6
+          with:
+            fetch-depth: 0
 
         - name: 📘 Go -- Set up
           uses: actions/setup-go@v6
@@ -49,6 +51,8 @@ jobs:
             echo "⚙️ Generating documentation for project..."
             if \
             gomarkdoc --include-unexported --output 'docs/{{.Dir}}/index.md' ./internal/... \
+            && \
+            gomarkdoc --include-unexported --output 'docs/{{.Dir}}/index.md' ./middleware/... \
             && \
             gomarkdoc --include-unexported --output 'docs/main/index.md' ./; then
                 echo ""

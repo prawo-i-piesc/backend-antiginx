@@ -1,146 +1,125 @@
 # 🛡️ Backend-AntiGinx
+Production-ready REST API for orchestration of web security scans.
+Backend-AntiGinx receives scan requests, stores scan state/results in PostgreSQL, and pushes scan tasks to RabbitMQ for asynchronous worker processing.
 
-## About the Project
 
-Backend-AntiGinx is the REST API server for the AntiGinx security scanning platform. Built with Go and the Gin framework, it provides endpoints for submitting security scan requests, processing results from worker services, and retrieving scan data. The service uses PostgreSQL for data persistence and RabbitMQ for asynchronous task distribution to scan workers.
+<br>
 
-## Technologies
 
-| Technology            | Description                                               |
-|-----------------------|-----------------------------------------------------------|
-| 🎯 **Go 1.25**        | Main programming language                                 |
-| 🌐 **Gin**            | High-performance HTTP web framework                       |
-| 🗄️ **PostgreSQL**     | Relational database for scan data persistence             |
-| 🐰 **RabbitMQ**       | Message broker for async task distribution                |
-| 🔷 **GORM**           | ORM library for database operations                       |
-| 🐳 **Docker**         | Containerization with multi-stage build                   |
-| 🔄 **GitHub Actions** | CI/CD: build, tests, release, auto-labeling               |
-| 📦 **GHCR**           | GitHub Container Registry for Docker images               |
-| 📚 **GitHub Pages**   | Documentation hosting (MkDocs)                            |
+## 🌟 About the Project
+Backend-AntiGinx is the API layer of the AntiGinx platform, built for reliability and integration.
 
-## Project Structure
+- **Queue-first workflow** — scan tasks are published to RabbitMQ queue `scan_queue`
+- **Stateful scan lifecycle** — `PENDING` → `RUNNING` → `COMPLETED`
+- **JWT-based authentication** — register/login/me flow for protected endpoints
+- **Structured JSON API** — easy integration with workers, dashboards, and CI/CD pipelines
+- **Container-ready delivery** — prebuilt image on GHCR + Docker Compose support
 
-```
-Backend-AntiGinx/
+
+<br>
+
+
+## 💻 Technologies
+| Technology | Purpose | Details |
+|---|---|---|
+| 🎯 **Go 1.25** | Core language | Fast, compiled, production-oriented |
+| 🌐 **Gin** | HTTP framework | Routing + middleware |
+| 🔷 **GORM** | ORM | Model mapping and migrations |
+| 🗄️ **PostgreSQL** | Persistence | Scan metadata and results storage |
+| 🐰 **RabbitMQ** | Task queue | Async scan dispatch to workers |
+| 🐳 **Docker** | Containers | Multi-stage image build |
+| 🧩 **Docker Compose** | Service run mode | Simple deployment with env vars |
+| 📦 **GHCR** | Image registry | Hosted backend images |
+| 📚 **MkDocs** | Documentation | GitHub Pages publishing |
+
+
+<br>
+
+
+## 📁 Project Structure
+```text
+backend-antiginx/
 ├── internal/
-│   ├── api/             # HTTP routing configuration
-│   ├── handlers/        # Request handlers (business logic)
-│   └── models/          # Database models (GORM)
-├── docs/                # MkDocs documentation
+│   ├── api/             # Gin router and route groups
+│   ├── handlers/        # Auth and scan handlers
+│   └── models/          # GORM models (Scan, ScanResult, User)
+├── middleware/          # JWT auth middleware
+├── docs/                # MkDocs documentation pages
 ├── main.go              # Application entry point
-├── go.mod               # Go module dependencies
-├── Dockerfile           # Multi-stage Docker build
-├── docker-compose.yml   # Container orchestration
-└── mkdocs.yml           # Documentation configuration
+├── Dockerfile           # Multi-stage image build
+├── docker-compose.yml   # Compose run config
+└── mkdocs.yml           # Documentation config
 ```
 
-### Core Components
 
-- **internal/api** - HTTP routing using Gin framework with RESTful endpoint definitions
-- **internal/handlers** - Request handlers implementing scan submission, result processing, and data retrieval
-- **internal/models** - GORM models for `Scan` and `ScanResult` entities with UUID support
+<br>
 
-## API Endpoints
 
-| Method | Endpoint          | Description                          |
-|--------|-------------------|--------------------------------------|
-| POST   | `/api/scans`      | Submit a new security scan request   |
-| POST   | `/api/results`    | Submit scan results (from workers)   |
-| GET    | `/api/scans/:id`  | Retrieve scan details and results    |
+## 🔌 API Surface
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| GET | `/api/health` | Service health check | Public |
+| POST | `/api/auth/register` | Register user | Public |
+| POST | `/api/auth/login` | Login and get JWT | Public |
+| GET | `/api/auth/me` | Current user profile | Bearer JWT |
+| POST | `/api/scans` | Submit a new scan request | Public |
+| GET | `/api/scans/:id` | Retrieve scan with results | Public |
+| POST | `/api/results` | Submit worker result callback | Public |
 
-## Quick Start
 
-### Prerequisites
+<br>
 
-- Go 1.25 or higher ([download here](https://go.dev/dl/))
-- PostgreSQL 14+
-- RabbitMQ 3.x
-- Docker & Docker Compose (optional)
 
-### Environment Variables
+## 📋 Prerequisites
+| Component | Version | Purpose |
+|---|---|---|
+| Go | 1.25+ | Build & run locally |
+| PostgreSQL | 14+ | Scan metadata and results storage |
+| RabbitMQ | 3.12+ | Task queue (optional) |
+| Docker | 24+ | Containerization |
+| Docker Compose | 2.0+ | Orchestration |
 
-Create a `.env` file in the project root:
 
-```env
-# Server
-BACKEND_PORT=8080
+<br>
 
-# PostgreSQL
-DATABASE_URL=postgres://user:password@localhost:5432/antiginx?sslmode=disable
 
-# RabbitMQ
-RABBITMQ_URL=amqp://user:password@localhost:5672/
-```
+## 📚 Documentation
+Our documentation is comprehensive and organized into logical sections:
 
-### Running Locally
+- **[Backend-AntiGinx Documentation](https://prawo-i-piesc.github.io/backend-antiginx/)** — full documentation with API reference, architecture overview, and setup guides.
+- **[Quick Start](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/QuickStart/)** — step-by-step guides for local CLI, Docker, and Docker Compose setups.
+    - [CLI Guide](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/CLI/) — detailed API usage examples with `curl`.
+    - [Docker Guide](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/Docker/) — how to run the backend using Docker.
+    - [Docker Compose Guide](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/DockerCompose/) — orchestrate backend with PostgreSQL and RabbitMQ using Compose.
 
-```bash
-# Clone the repository
-git clone https://github.com/prawo-i-piesc/backend-antiginx.git
-cd backend-antiginx
 
-# Install dependencies
-go mod download
+<br>
 
-# Run the server (requires PostgreSQL and RabbitMQ)
-go run main.go
-```
 
-### Using Docker Compose
+## 🤝 Contributing
+We welcome contributions! Please:
 
-```bash
-# Build and start all services
-docker-compose up -d --build
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit changes with clear messages
+4. Push to the branch and create a Pull Request
 
-# View logs
-docker-compose logs -f backend-antiginx
 
-# Stop services
-docker-compose down
-```
+<br>
 
-### Using Pre-built Docker Image
 
-```bash
-# Pull the latest image
-docker pull ghcr.io/prawo-i-piesc/backend-antiginx:latest
+## 📞 Support & Community
+- 🐛 **Found a bug?** → [Open an Issue](https://github.com/prawo-i-piesc/backend-antiginx/issues)
+- 📧 **Commercial support** → Contact the Antiginx team
 
-# Run with environment variables
-docker run -d \
-  -p 8080:8080 \
-  -e DATABASE_URL="postgres://..." \
-  -e RABBITMQ_URL="amqp://..." \
-  ghcr.io/prawo-i-piesc/backend-antiginx:latest
-```
 
-## API Usage Examples
+<br>
 
-### Submit a new scan
 
-```bash
-curl -X POST http://localhost:8080/api/scans \
-  -H "Content-Type: application/json" \
-  -d '{"target_url": "https://example.com"}'
-```
-
-Response:
-```json
-{
-  "scanId": "01234567-89ab-cdef-0123-456789abcdef",
-  "status": "PENDING"
-}
-```
-
-### Get scan results
-
-```bash
-curl http://localhost:8080/api/scans/01234567-89ab-cdef-0123-456789abcdef
-```
-
-## Links
-
+## 📄 Links
 - 📦 [GitHub Repository](https://github.com/prawo-i-piesc/backend-antiginx)
 - 🐳 [Container Images (GHCR)](https://github.com/prawo-i-piesc/backend-antiginx/pkgs/container/backend-antiginx)
-- 📚 [Documentation (GitHub Pages)](https://prawo-i-piesc.github.io/backend-antiginx/)
+- 📚 [Full Documentation (GitHub Pages)](https://prawo-i-piesc.github.io/backend-antiginx/)
 - 🚀 [GitHub Actions](https://github.com/prawo-i-piesc/backend-antiginx/actions)
-- 📝 [License](../LICENSE)
+- 📝 [License](https://github.com/prawo-i-piesc/backend-antiginx/blob/main/LICENSE)
+- 👥 [GitHub Team](https://github.com/prawo-i-piesc)
