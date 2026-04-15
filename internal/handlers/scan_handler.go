@@ -458,11 +458,21 @@ func (h *ScanHandler) HandlePremiumGetScan(c *gin.Context) {
 }
 
 func (h *ScanHandler) HandleUserScans(c *gin.Context) {
-	userIDParam := c.Param("id")
+	userIDContext, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
+		return
+	}
 
-	userUUID, err := uuid.Parse(userIDParam)
+	userIDStr, ok := userIDContext.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	userUUID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID format in token"})
 		return
 	}
 
