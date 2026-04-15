@@ -1,0 +1,19 @@
+package models
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type PremiumScan struct {
+	ID          uuid.UUID    `gorm:"type:uuid;primary_key;" json:"id"`
+	UserID      uuid.UUID    `gorm:"type:uuid;index" json:"user_id"`
+	User        User         `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	TargetURL   string       `json:"target_url"`
+	Status      string       `json:"status"`
+	CreatedAt   time.Time    `json:"created_at"`
+	StartedAt   *time.Time   `json:"started_at"`
+	CompletedAt *time.Time   `json:"completed_at"`
+	Results     []ScanResult `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
+}

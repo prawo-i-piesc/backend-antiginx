@@ -33,5 +33,5 @@ type Scan struct {
 	// CompletedAt is the timestamp when the scan finished (nil if not completed)
 	CompletedAt *time.Time `json:"completed_at"`
 	// Results contains all individual test results for this scan
-	Results []ScanResult `gorm:"foreignKey:ScanID" json:"results"`
+	Results []ScanResult `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
 }
