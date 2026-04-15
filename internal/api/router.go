@@ -73,6 +73,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/auth/me", authHandler.Me)
 		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
+		protected.GET("/users/:id/scans", scanHandler.HandleUserScans)
 	}
 
 	return r
