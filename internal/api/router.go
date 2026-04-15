@@ -59,9 +59,9 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 
 	public := r.Group("/api")
 	{
-		public.POST("/scans", scanHandler.HandleScanSubmission)
+		public.POST("/freescans", scanHandler.HandleScanSubmission)
 		public.POST("/results", scanHandler.HandleResultSubmission)
-		public.GET("/scans/:id", scanHandler.HandleGetScan)
+		public.GET("/freescans/:id", scanHandler.HandleGetScan)
 		public.GET("/health", scanHandler.HandleHealthCheck)
 		public.POST("/auth/register", authHandler.Register)
 		public.POST("/auth/login", authHandler.Login)
@@ -71,6 +71,8 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	protected.Use(middleware.RequireAuth())
 	{
 		protected.GET("/auth/me", authHandler.Me)
+		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
+		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
 	}
 
 	return r

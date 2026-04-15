@@ -264,3 +264,149 @@ func (h *ScanHandler) HandleGetScan(c *gin.Context) {
 
 	c.JSON(http.StatusOK, scan)
 }
+
+func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
+	var req CreateScanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	newScanID, err := uuid.NewV7()
+	if err != nil {
+		log.Printf("Failed to generate UUIDv7: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate scan ID"})
+		return
+	}
+
+	userIDContext, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
+		return
+	}
+
+	userIDStr, ok := userIDContext.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	userUUID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	newScan := models.PremiumScan{
+		ID:        newScanID,
+		UserID:    userUUID,
+		TargetURL: req.TargetURL,
+		Status:    "PENDING",
+		CreatedAt: time.Now(),
+	}
+
+	result := h.db.Create(&newScan)
+	if result.Error != nil {
+		log.Printf("Failed to create scan in DB: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create scan"})
+		return
+	}
+
+	task := ScanTaskPayload{
+		Target: newScan.TargetURL,
+		Parameters: []CommandParameter{
+			{
+				Name: "--tests",
+				Arguments: []string{"https",
+					"hsts",
+					"serv-h-a",
+					"csp",
+					"cookie-sec",
+					"js-obf",
+					"xframe",
+					"permissions-policy",
+					"x-content-type-options",
+					"referrer-policy",
+					"cross-origin-x"},
+			},
+			{
+				Name: "--taskId",
+				Arguments: []string{
+					newScan.ID.String(),
+				},
+			},
+		},
+	}
+
+	jsonBytes, err := json.Marshal(task)
+	if err != nil {
+		log.Printf("Failed to marshal task: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	err = h.amqpChannel.PublishWithContext(c.Request.Context(),
+		"",
+		"scan_queue",
+		false,
+		false,
+		amqp.Publishing{
+			DeliveryMode: amqp.Persistent,
+			ContentType:  "application/json",
+			Body:         jsonBytes,
+		})
+
+	if err != nil {
+		log.Printf("Failed to publish message: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to queue scan"})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"scanId": newScan.ID.String(),
+		"status": newScan.Status,
+	})
+}
+
+func (h *ScanHandler) HandlePremiumGetScan(c *gin.Context) {
+	userIDContext, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
+		return
+	}
+
+	userIDStr, ok := userIDContext.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	userUUID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format in token"})
+		return
+	}
+
+	scanIDParam := c.Param("id")
+	scanUUID, err := uuid.Parse(scanIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Scan ID format"})
+		return
+	}
+
+	var scan models.PremiumScan
+
+	result := h.db.Preload("Results").First(&scan, "id = ? AND user_id = ?", scanUUID, userUUID)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scan not found"})
+		} else {
+			log.Printf("Failed to retrieve scan: %v", result.Error)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve scan"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, scan)
+}
