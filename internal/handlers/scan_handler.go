@@ -27,7 +27,12 @@ func NewScanHandler(ch *amqp.Channel, db *gorm.DB) *ScanHandler {
 }
 
 type CreateScanRequest struct {
-	TargetURL string `json:"target_url" binding:"required"`
+	TargetURL string `json:"target_url" binding:"required,url"`
+}
+
+type PremiumScanRequest struct {
+	TargetURL string   `json:"target_url" binding:"required,url"`
+	Tests     []string `json:"tests" binding:"required,min=1"`
 }
 
 type CommandParameter struct {

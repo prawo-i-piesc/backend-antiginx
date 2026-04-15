@@ -15,5 +15,5 @@ type PremiumScan struct {
 	CreatedAt   time.Time    `json:"created_at"`
 	StartedAt   *time.Time   `json:"started_at"`
 	CompletedAt *time.Time   `json:"completed_at"`
-	Results     []ScanResult `gorm:"foreignKey:ScanID" json:"results"`
+	Results     []ScanResult `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
 }
