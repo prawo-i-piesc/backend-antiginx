@@ -710,6 +710,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#type-asyncresultrequest" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -837,6 +848,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#type-premiumscanrequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        type PremiumScanRequest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#type-registerrequest" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -904,6 +926,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#func-scanhandler-handlepremiumgetscan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        func (*ScanHandler) HandlePremiumGetScan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#func-scanhandler-handlepremiumscansubmission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        func (*ScanHandler) HandlePremiumScanSubmission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#func-scanhandler-handleresultsubmission" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -919,6 +963,17 @@
     <span class="md-ellipsis">
       
         func (*ScanHandler) HandleScanSubmission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#func-scanhandler-handleuserscans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        func (*ScanHandler) HandleUserScans
       
     </span>
   </a>
@@ -1071,6 +1126,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#type-asyncresultrequest" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1198,6 +1264,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#type-premiumscanrequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        type PremiumScanRequest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#type-registerrequest" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1265,6 +1342,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#func-scanhandler-handlepremiumgetscan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        func (*ScanHandler) HandlePremiumGetScan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#func-scanhandler-handlepremiumscansubmission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        func (*ScanHandler) HandlePremiumScanSubmission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#func-scanhandler-handleresultsubmission" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1280,6 +1379,17 @@
     <span class="md-ellipsis">
       
         func (*ScanHandler) HandleScanSubmission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#func-scanhandler-handleuserscans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        func (*ScanHandler) HandleUserScans
       
     </span>
   </a>
@@ -1399,6 +1509,7 @@
 </span></code></pre></div>
 <h2 id="index">Index<a class="headerlink" href="#index" title="Permanent link">&para;</a></h2>
 <ul>
+<li><a href="#variables">Variables</a></li>
 <li><a href="#AsyncResultRequest">type AsyncResultRequest</a></li>
 <li><a href="#AuthHandler">type AuthHandler</a></li>
 <li><a href="#NewAuthHandler">func NewAuthHandler(db *gorm.DB) *AuthHandler</a></li>
@@ -1410,153 +1521,185 @@
 <li><a href="#CreateScanRequest">type CreateScanRequest</a></li>
 <li><a href="#EngineTestResult">type EngineTestResult</a></li>
 <li><a href="#LoginRequest">type LoginRequest</a></li>
+<li><a href="#PremiumScanRequest">type PremiumScanRequest</a></li>
 <li><a href="#RegisterRequest">type RegisterRequest</a></li>
 <li><a href="#ResultSubmissionRequest">type ResultSubmissionRequest</a></li>
 <li><a href="#ScanHandler">type ScanHandler</a></li>
 <li><a href="#NewScanHandler">func NewScanHandler(ch *amqp.Channel, db *gorm.DB) *ScanHandler</a></li>
 <li><a href="#ScanHandler.HandleGetScan">func (h *ScanHandler) HandleGetScan(c *gin.Context)</a></li>
 <li><a href="#ScanHandler.HandleHealthCheck">func (h *ScanHandler) HandleHealthCheck(c *gin.Context)</a></li>
+<li><a href="#ScanHandler.HandlePremiumGetScan">func (h *ScanHandler) HandlePremiumGetScan(c *gin.Context)</a></li>
+<li><a href="#ScanHandler.HandlePremiumScanSubmission">func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context)</a></li>
 <li><a href="#ScanHandler.HandleResultSubmission">func (h *ScanHandler) HandleResultSubmission(c *gin.Context)</a></li>
 <li><a href="#ScanHandler.HandleScanSubmission">func (h *ScanHandler) HandleScanSubmission(c *gin.Context)</a></li>
+<li><a href="#ScanHandler.HandleUserScans">func (h *ScanHandler) HandleUserScans(c *gin.Context)</a></li>
 <li><a href="#ScanResultItem">type ScanResultItem</a></li>
 <li><a href="#ScanTaskMessage">type ScanTaskMessage</a></li>
 <li><a href="#ScanTaskPayload">type ScanTaskPayload</a></li>
 </ul>
+<h2 id="variables">Variables<a class="headerlink" href="#variables" title="Permanent link">&para;</a></h2>
+<p><a name="AllowedPremiumTests"></a></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">var</span><span class="w"> </span><span class="nx">AllowedPremiumTests</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">bool</span><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="s">&quot;https&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;hsts&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;serv-h-a&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;csp&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="s">&quot;cookie-sec&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;js-obf&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;xframe&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="s">&quot;permissions-policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;x-content-type-options&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="s">&quot;referrer-policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cross-origin-x&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</span></code></pre></div>
 <p><a name="AsyncResultRequest"></a></p>
 <h2 id="type-asyncresultrequest">type AsyncResultRequest<a class="headerlink" href="#type-asyncresultrequest" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">AsyncResultRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">Target</span><span class="w"> </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;target&quot;`</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nx">TestID</span><span class="w"> </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;testId&quot;`</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nx">Result</span><span class="w"> </span><span class="nx">EngineTestResult</span><span class="w"> </span><span class="s">`json:&quot;result&quot;`</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">AsyncResultRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">Target</span><span class="w"> </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;target&quot;`</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">TestID</span><span class="w"> </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;testId&quot;`</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nx">Result</span><span class="w"> </span><span class="nx">EngineTestResult</span><span class="w"> </span><span class="s">`json:&quot;result&quot;`</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="AuthHandler"></a></p>
 <h2 id="type-authhandler">type AuthHandler<a class="headerlink" href="#type-authhandler" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">AuthHandler</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">db</span><span class="w"> </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">AuthHandler</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nx">db</span><span class="w"> </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="NewAuthHandler"></a></p>
 <h3 id="func-newauthhandler">func NewAuthHandler<a class="headerlink" href="#func-newauthhandler" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewAuthHandler</span><span class="p">(</span><span class="nx">db</span><span class="w"> </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewAuthHandler</span><span class="p">(</span><span class="nx">db</span><span class="w"> </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span>
 </span></code></pre></div>
 <p><a name="AuthHandler.GenerateToken"></a></p>
 <h3 id="func-authhandler-generatetoken">func (*AuthHandler) GenerateToken<a class="headerlink" href="#func-authhandler-generatetoken" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">GenerateToken</span><span class="p">(</span><span class="nx">userID</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">GenerateToken</span><span class="p">(</span><span class="nx">userID</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="AuthHandler.Login"></a></p>
 <h3 id="func-authhandler-login">func (*AuthHandler) Login<a class="headerlink" href="#func-authhandler-login" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">Login</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">Login</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="AuthHandler.Me"></a></p>
 <h3 id="func-authhandler-me">func (*AuthHandler) Me<a class="headerlink" href="#func-authhandler-me" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">Me</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">Me</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="AuthHandler.Register"></a></p>
 <h3 id="func-authhandler-register">func (*AuthHandler) Register<a class="headerlink" href="#func-authhandler-register" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">Register</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">AuthHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">Register</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="CommandParameter"></a></p>
 <h2 id="type-commandparameter">type CommandParameter<a class="headerlink" href="#type-commandparameter" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">CommandParameter</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">Name</span><span class="w">      </span><span class="kt">string</span><span class="w">   </span><span class="s">`json:&quot;Name&quot;`</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nx">Arguments</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;Arguments&quot;`</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">CommandParameter</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nx">Name</span><span class="w">      </span><span class="kt">string</span><span class="w">   </span><span class="s">`json:&quot;Name&quot;`</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nx">Arguments</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;Arguments&quot;`</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="CreateScanRequest"></a></p>
 <h2 id="type-createscanrequest">type CreateScanRequest<a class="headerlink" href="#type-createscanrequest" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">CreateScanRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;target_url&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">CreateScanRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;target_url&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="EngineTestResult"></a></p>
 <h2 id="type-enginetestresult">type EngineTestResult<a class="headerlink" href="#type-enginetestresult" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">EngineTestResult</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="nx">Name</span><span class="w">        </span><span class="kt">string</span><span class="w">      </span><span class="s">`json:&quot;Name&quot;`</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nx">Certainty</span><span class="w">   </span><span class="kt">int</span><span class="w">         </span><span class="s">`json:&quot;Certainty&quot;`</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="nx">ThreatLevel</span><span class="w"> </span><span class="kt">string</span><span class="w">      </span><span class="s">`json:&quot;ThreatLevel&quot;`</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="nx">Metadata</span><span class="w">    </span><span class="kd">interface</span><span class="p">{}</span><span class="w"> </span><span class="s">`json:&quot;Metadata&quot;`</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="nx">Description</span><span class="w"> </span><span class="kt">string</span><span class="w">      </span><span class="s">`json:&quot;Description&quot;`</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">EngineTestResult</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="nx">Name</span><span class="w">        </span><span class="kt">string</span><span class="w">      </span><span class="s">`json:&quot;Name&quot;`</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nx">Certainty</span><span class="w">   </span><span class="kt">int</span><span class="w">         </span><span class="s">`json:&quot;Certainty&quot;`</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nx">ThreatLevel</span><span class="w"> </span><span class="kt">string</span><span class="w">      </span><span class="s">`json:&quot;ThreatLevel&quot;`</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="nx">Metadata</span><span class="w">    </span><span class="kd">interface</span><span class="p">{}</span><span class="w"> </span><span class="s">`json:&quot;Metadata&quot;`</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="nx">Description</span><span class="w"> </span><span class="kt">string</span><span class="w">      </span><span class="s">`json:&quot;Description&quot;`</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="LoginRequest"></a></p>
 <h2 id="type-loginrequest">type LoginRequest<a class="headerlink" href="#type-loginrequest" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">LoginRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="nx">Email</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;email&quot; binding:&quot;required,email&quot;`</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nx">Password</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;password&quot; binding:&quot;required,min=8&quot;`</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">LoginRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="nx">Email</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;email&quot; binding:&quot;required,email&quot;`</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="nx">Password</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;password&quot; binding:&quot;required,min=8&quot;`</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><a name="PremiumScanRequest"></a></p>
+<h2 id="type-premiumscanrequest">type PremiumScanRequest<a class="headerlink" href="#type-premiumscanrequest" title="Permanent link">&para;</a></h2>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">PremiumScanRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w"> </span><span class="kt">string</span><span class="w">   </span><span class="s">`json:&quot;target_url&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="nx">Tests</span><span class="w">     </span><span class="p">[]</span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;tests&quot; binding:&quot;required,min=1&quot;`</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="RegisterRequest"></a></p>
 <h2 id="type-registerrequest">type RegisterRequest<a class="headerlink" href="#type-registerrequest" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">RegisterRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="nx">FullName</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;full_name&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="nx">Email</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;email&quot; binding:&quot;required,email&quot;`</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="nx">Password</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;password&quot; binding:&quot;required,min=8&quot;`</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">RegisterRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="nx">FullName</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;full_name&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="nx">Email</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;email&quot; binding:&quot;required,email&quot;`</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="nx">Password</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;password&quot; binding:&quot;required,min=8&quot;`</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="ResultSubmissionRequest"></a></p>
 <h2 id="type-resultsubmissionrequest">type ResultSubmissionRequest<a class="headerlink" href="#type-resultsubmissionrequest" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ResultSubmissionRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span><span class="nx">ScanID</span><span class="w">      </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;scan_id&quot; binding:&quot;required,uuid&quot;`</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="nx">Status</span><span class="w">      </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;status&quot; binding:&quot;required,oneof=COMPLETED FAILED&quot;`</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="nx">StartedAt</span><span class="w">   </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">        </span><span class="s">`json:&quot;started_at&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="nx">CompletedAt</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">        </span><span class="s">`json:&quot;completed_at&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="nx">Results</span><span class="w">     </span><span class="p">[]</span><span class="nx">ScanResultItem</span><span class="w"> </span><span class="s">`json:&quot;results&quot; binding:&quot;required,dive&quot;`</span>
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ResultSubmissionRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="nx">ScanID</span><span class="w">      </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;scan_id&quot; binding:&quot;required,uuid&quot;`</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="nx">Status</span><span class="w">      </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;status&quot; binding:&quot;required,oneof=COMPLETED FAILED&quot;`</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="nx">StartedAt</span><span class="w">   </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">        </span><span class="s">`json:&quot;started_at&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="nx">CompletedAt</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">        </span><span class="s">`json:&quot;completed_at&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="nx">Results</span><span class="w">     </span><span class="p">[]</span><span class="nx">ScanResultItem</span><span class="w"> </span><span class="s">`json:&quot;results&quot; binding:&quot;required,dive&quot;`</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="ScanHandler"></a></p>
 <h2 id="type-scanhandler">type ScanHandler<a class="headerlink" href="#type-scanhandler" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanHandler</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="nx">amqpChannel</span><span class="w"> </span><span class="o">*</span><span class="nx">amqp</span><span class="p">.</span><span class="nx">Channel</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="nx">db</span><span class="w">          </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanHandler</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="nx">amqpChannel</span><span class="w"> </span><span class="o">*</span><span class="nx">amqp</span><span class="p">.</span><span class="nx">Channel</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="nx">db</span><span class="w">          </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="NewScanHandler"></a></p>
 <h3 id="func-newscanhandler">func NewScanHandler<a class="headerlink" href="#func-newscanhandler" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewScanHandler</span><span class="p">(</span><span class="nx">ch</span><span class="w"> </span><span class="o">*</span><span class="nx">amqp</span><span class="p">.</span><span class="nx">Channel</span><span class="p">,</span><span class="w"> </span><span class="nx">db</span><span class="w"> </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewScanHandler</span><span class="p">(</span><span class="nx">ch</span><span class="w"> </span><span class="o">*</span><span class="nx">amqp</span><span class="p">.</span><span class="nx">Channel</span><span class="p">,</span><span class="w"> </span><span class="nx">db</span><span class="w"> </span><span class="o">*</span><span class="nx">gorm</span><span class="p">.</span><span class="nx">DB</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span>
 </span></code></pre></div>
 <p><a name="ScanHandler.HandleGetScan"></a></p>
 <h3 id="func-scanhandler-handlegetscan">func (*ScanHandler) HandleGetScan<a class="headerlink" href="#func-scanhandler-handlegetscan" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleGetScan</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleGetScan</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="ScanHandler.HandleHealthCheck"></a></p>
 <h3 id="func-scanhandler-handlehealthcheck">func (*ScanHandler) HandleHealthCheck<a class="headerlink" href="#func-scanhandler-handlehealthcheck" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleHealthCheck</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleHealthCheck</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+</span></code></pre></div>
+<p><a name="ScanHandler.HandlePremiumGetScan"></a></p>
+<h3 id="func-scanhandler-handlepremiumgetscan">func (*ScanHandler) HandlePremiumGetScan<a class="headerlink" href="#func-scanhandler-handlepremiumgetscan" title="Permanent link">&para;</a></h3>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandlePremiumGetScan</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+</span></code></pre></div>
+<p><a name="ScanHandler.HandlePremiumScanSubmission"></a></p>
+<h3 id="func-scanhandler-handlepremiumscansubmission">func (*ScanHandler) HandlePremiumScanSubmission<a class="headerlink" href="#func-scanhandler-handlepremiumscansubmission" title="Permanent link">&para;</a></h3>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandlePremiumScanSubmission</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="ScanHandler.HandleResultSubmission"></a></p>
 <h3 id="func-scanhandler-handleresultsubmission">func (*ScanHandler) HandleResultSubmission<a class="headerlink" href="#func-scanhandler-handleresultsubmission" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleResultSubmission</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleResultSubmission</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="ScanHandler.HandleScanSubmission"></a></p>
 <h3 id="func-scanhandler-handlescansubmission">func (*ScanHandler) HandleScanSubmission<a class="headerlink" href="#func-scanhandler-handlescansubmission" title="Permanent link">&para;</a></h3>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleScanSubmission</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleScanSubmission</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
+</span></code></pre></div>
+<p><a name="ScanHandler.HandleUserScans"></a></p>
+<h3 id="func-scanhandler-handleuserscans">func (*ScanHandler) HandleUserScans<a class="headerlink" href="#func-scanhandler-handleuserscans" title="Permanent link">&para;</a></h3>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">ScanHandler</span><span class="p">)</span><span class="w"> </span><span class="nx">HandleUserScans</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span>
 </span></code></pre></div>
 <p><a name="ScanResultItem"></a></p>
 <h2 id="type-scanresultitem">type ScanResultItem<a class="headerlink" href="#type-scanresultitem" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanResultItem</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">    </span><span class="nx">TestID</span><span class="w">      </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;test_id&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">    </span><span class="nx">TestName</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;test_name&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">    </span><span class="nx">Category</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;category&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">    </span><span class="nx">Severity</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;severity&quot; binding:&quot;required&quot;`</span>
-</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">    </span><span class="nx">Passed</span><span class="w">      </span><span class="kt">bool</span><span class="w">   </span><span class="s">`json:&quot;passed&quot;`</span>
-</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">    </span><span class="nx">Message</span><span class="w">     </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;message&quot;`</span>
-</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">    </span><span class="nx">Reference</span><span class="w">   </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;reference&quot;`</span>
-</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">    </span><span class="nx">Remediation</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;remediation&quot;`</span>
-</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanResultItem</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">    </span><span class="nx">TestID</span><span class="w">      </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;test_id&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span><span class="nx">TestName</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;test_name&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">    </span><span class="nx">Category</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;category&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">    </span><span class="nx">Severity</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;severity&quot; binding:&quot;required&quot;`</span>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">    </span><span class="nx">Passed</span><span class="w">      </span><span class="kt">bool</span><span class="w">   </span><span class="s">`json:&quot;passed&quot;`</span>
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">    </span><span class="nx">Message</span><span class="w">     </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;message&quot;`</span>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">    </span><span class="nx">Reference</span><span class="w">   </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;reference&quot;`</span>
+</span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">    </span><span class="nx">Remediation</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;remediation&quot;`</span>
+</span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="ScanTaskMessage"></a></p>
 <h2 id="type-scantaskmessage">type ScanTaskMessage<a class="headerlink" href="#type-scantaskmessage" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanTaskMessage</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">        </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;id&quot;`</span>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;target_url&quot;`</span>
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanTaskMessage</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">        </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;id&quot;`</span>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;target_url&quot;`</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="ScanTaskPayload"></a></p>
 <h2 id="type-scantaskpayload">type ScanTaskPayload<a class="headerlink" href="#type-scantaskpayload" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanTaskPayload</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">    </span><span class="nx">Target</span><span class="w">     </span><span class="kt">string</span><span class="w">             </span><span class="s">`json:&quot;Target&quot;`</span>
-</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="nx">Parameters</span><span class="w"> </span><span class="p">[]</span><span class="nx">CommandParameter</span><span class="w"> </span><span class="s">`json:&quot;Parameters&quot;`</span>
-</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanTaskPayload</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">    </span><span class="nx">Target</span><span class="w">     </span><span class="kt">string</span><span class="w">             </span><span class="s">`json:&quot;Target&quot;`</span>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">    </span><span class="nx">Parameters</span><span class="w"> </span><span class="p">[]</span><span class="nx">CommandParameter</span><span class="w"> </span><span class="s">`json:&quot;Parameters&quot;`</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>Generated by <a href="https://github.com/princjef/gomarkdoc">gomarkdoc</a></p>
 
@@ -1581,7 +1724,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="March 26, 2026 13:07:45 UTC"><span class="timeago" datetime="2026-03-26T13:07:45+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="March 26, 2026 13:07:45 UTC">2026-03-26</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="April 15, 2026 12:02:27 UTC"><span class="timeago" datetime="2026-04-15T12:02:27+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 15, 2026 12:02:27 UTC">2026-04-15</span>
   </span>
 
     
@@ -1591,7 +1734,7 @@
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="March 26, 2026 13:07:45 UTC"><span class="timeago" datetime="2026-03-26T13:07:45+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="March 26, 2026 13:07:45 UTC">2026-03-26</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="April 15, 2026 12:02:27 UTC"><span class="timeago" datetime="2026-04-15T12:02:27+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 15, 2026 12:02:27 UTC">2026-04-15</span>
   </span>
 
     
