@@ -84,7 +84,7 @@ type ScanTaskMessage struct {
 }
 
 var AvailableTestsList = []string{
-	"https", "serv-h-a", "csp", "cookie-sec",
+	"https", "hsts", "serv-h-a", "csp", "cookie-sec",
 	"js-obf", "xframe", "permissions-policy", "x-content-type-options",
 	"referrer-policy", "cross-origin-x",
 }
