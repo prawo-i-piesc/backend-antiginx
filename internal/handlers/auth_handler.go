@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,17 +37,27 @@ func NewAuthHandler(db *gorm.DB) *AuthHandler {
 	}
 }
 
-func (h *AuthHandler) GenerateToken(userID string) (string, error) {
+func (h *AuthHandler) DB() *gorm.DB {
+	return h.db
+}
+
+func (h *AuthHandler) GenerateToken(userID string, role string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		return "", errors.New("JWT_SECRET is not defined in environment variables")
 	}
 
+	normalizedRole := strings.ToLower(strings.TrimSpace(role))
+	if normalizedRole == "" {
+		normalizedRole = models.UserRoleUser
+	}
+
 	claims := jwt.MapClaims{
-		"sub": userID,
-		"exp": time.Now().Add(time.Hour * 1).Unix(),
-		"iat": time.Now().Unix(),
-		"iss": "backend-antiginx",
+		"sub":  userID,
+		"role": normalizedRole,
+		"exp":  time.Now().Add(time.Hour * 1).Unix(),
+		"iat":  time.Now().Unix(),
+		"iss":  "backend-antiginx",
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -99,6 +110,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		ID:        newUserID,
 		FullName:  req.FullName,
 		Email:     req.Email,
+		Role:      models.UserRoleUser,
 		CreatedAt: time.Now(),
 		Password:  HashedPassword,
 	}
@@ -141,7 +153,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.GenerateToken(existingUser.ID.String())
+	token, err := h.GenerateToken(existingUser.ID.String(), existingUser.Role)
 	if err != nil {
 		log.Printf("Failed to generate token: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate token"})
@@ -184,5 +196,6 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"id":        existingUser.ID,
 		"full_name": existingUser.FullName,
 		"email":     existingUser.Email,
+		"role":      existingUser.Role,
 	})
 }
