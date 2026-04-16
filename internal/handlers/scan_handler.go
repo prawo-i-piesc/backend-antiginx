@@ -83,6 +83,20 @@ type ScanTaskMessage struct {
 	TargetURL string `json:"target_url"`
 }
 
+var AvailableTestsList = []string{
+	"https", "hsts", "serv-h-a", "csp", "cookie-sec",
+	"js-obf", "xframe", "permissions-policy", "x-content-type-options",
+	"referrer-policy", "cross-origin-x",
+}
+
+var AllowedPremiumTests = func() map[string]bool {
+	m := make(map[string]bool)
+	for _, test := range AvailableTestsList {
+		m[test] = true
+	}
+	return m
+}()
+
 func (h *ScanHandler) HandleHealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Running...",
@@ -120,18 +134,8 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 		Target: newScan.TargetURL,
 		Parameters: []CommandParameter{
 			{
-				Name: "--tests",
-				Arguments: []string{"https",
-					"hsts",
-					"serv-h-a",
-					"csp",
-					"cookie-sec",
-					"js-obf",
-					"xframe",
-					"permissions-policy",
-					"x-content-type-options",
-					"referrer-policy",
-					"cross-origin-x"},
+				Name:      "--tests",
+				Arguments: AvailableTestsList,
 			},
 			{
 				Name: "--taskId",
@@ -301,13 +305,6 @@ func (h *ScanHandler) HandleGetScan(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, scan)
-}
-
-var AllowedPremiumTests = map[string]bool{
-	"https": true, "hsts": true, "serv-h-a": true, "csp": true,
-	"cookie-sec": true, "js-obf": true, "xframe": true,
-	"permissions-policy": true, "x-content-type-options": true,
-	"referrer-policy": true, "cross-origin-x": true,
 }
 
 func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
