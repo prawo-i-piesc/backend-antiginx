@@ -75,7 +75,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
 		//Tutaj karol masz enpointa
-		protected.GET("/utils/scans", scanHandler.HandleAvailableScans)
+		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
 	}
 
 	admin := r.Group("/api/admin")
