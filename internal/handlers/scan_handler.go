@@ -31,8 +31,9 @@ type CreateScanRequest struct {
 }
 
 type PremiumScanRequest struct {
-	TargetURL string   `json:"target_url" binding:"required"`
-	Tests     []string `json:"tests" binding:"required,min=1"`
+	TargetURL        string   `json:"target_url" binding:"required"`
+	Tests            []string `json:"tests" binding:"required,min=1"`
+	AuthorizedTester bool     `json:"authorized_tester"`
 }
 
 type CommandParameter struct {
