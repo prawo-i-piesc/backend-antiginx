@@ -74,6 +74,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
+		protected.GET("/utils/scans", scanHandler.HandleAvailableScans)
 	}
 
 	admin := r.Group("/api/admin")
