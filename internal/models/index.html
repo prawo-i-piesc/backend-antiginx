@@ -738,6 +738,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constants
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#type-premiumscan" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -854,6 +865,17 @@
     <span class="md-ellipsis">
       
         Index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constants
       
     </span>
   </a>
@@ -981,69 +1003,78 @@
 <p>This package contains GORM models that represent database tables and are used for ORM operations throughout the application.</p>
 <h2 id="index">Index<a class="headerlink" href="#index" title="Permanent link">&para;</a></h2>
 <ul>
+<li><a href="#constants">Constants</a></li>
 <li><a href="#PremiumScan">type PremiumScan</a></li>
 <li><a href="#Scan">type Scan</a></li>
 <li><a href="#ScanResult">type ScanResult</a></li>
 <li><a href="#User">type User</a></li>
 </ul>
+<h2 id="constants">Constants<a class="headerlink" href="#constants" title="Permanent link">&para;</a></h2>
+<p><a name="UserRoleUser"></a></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">UserRoleUser</span><span class="w">  </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;user&quot;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nx">UserRoleAdmin</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;admin&quot;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">)</span>
+</span></code></pre></div>
 <p><a name="PremiumScan"></a></p>
 <h2 id="type-premiumscan">type PremiumScan<a class="headerlink" href="#type-premiumscan" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">PremiumScan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">          </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w">    </span><span class="s">`gorm:&quot;type:uuid;primary_key;&quot; json:&quot;id&quot;`</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nx">UserID</span><span class="w">      </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w">    </span><span class="s">`gorm:&quot;type:uuid;index&quot; json:&quot;user_id&quot;`</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nx">User</span><span class="w">        </span><span class="nx">User</span><span class="w">         </span><span class="s">`gorm:&quot;foreignKey:UserID&quot; json:&quot;user,omitempty&quot;`</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w">   </span><span class="kt">string</span><span class="w">       </span><span class="s">`json:&quot;target_url&quot;`</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nx">Status</span><span class="w">      </span><span class="kt">string</span><span class="w">       </span><span class="s">`json:&quot;status&quot;`</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nx">CreatedAt</span><span class="w">   </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">    </span><span class="s">`json:&quot;created_at&quot;`</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nx">StartedAt</span><span class="w">   </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">   </span><span class="s">`json:&quot;started_at&quot;`</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nx">CompletedAt</span><span class="w"> </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">   </span><span class="s">`json:&quot;completed_at&quot;`</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nx">Results</span><span class="w">     </span><span class="p">[]</span><span class="nx">ScanResult</span><span class="w"> </span><span class="s">`gorm:&quot;foreignKey:ScanID;constraint:-&quot; json:&quot;results&quot;`</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">PremiumScan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">          </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w">    </span><span class="s">`gorm:&quot;type:uuid;primary_key;&quot; json:&quot;id&quot;`</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">UserID</span><span class="w">      </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w">    </span><span class="s">`gorm:&quot;type:uuid;index&quot; json:&quot;user_id&quot;`</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nx">User</span><span class="w">        </span><span class="nx">User</span><span class="w">         </span><span class="s">`gorm:&quot;foreignKey:UserID&quot; json:&quot;user,omitempty&quot;`</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w">   </span><span class="kt">string</span><span class="w">       </span><span class="s">`json:&quot;target_url&quot;`</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nx">Status</span><span class="w">      </span><span class="kt">string</span><span class="w">       </span><span class="s">`json:&quot;status&quot;`</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nx">CreatedAt</span><span class="w">   </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">    </span><span class="s">`json:&quot;created_at&quot;`</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nx">StartedAt</span><span class="w">   </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">   </span><span class="s">`json:&quot;started_at&quot;`</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nx">CompletedAt</span><span class="w"> </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w">   </span><span class="s">`json:&quot;completed_at&quot;`</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="nx">Results</span><span class="w">     </span><span class="p">[]</span><span class="nx">ScanResult</span><span class="w"> </span><span class="s">`gorm:&quot;foreignKey:ScanID;constraint:-&quot; json:&quot;results&quot;`</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="Scan"></a></p>
 <h2 id="type-scan">type Scan<a class="headerlink" href="#type-scan" title="Permanent link">&para;</a></h2>
 <p>Scan represents a security scan request and its current state.</p>
 <p>Each scan targets a specific URL and progresses through various statuses (PENDING, RUNNING, COMPLETED, FAILED) as it is processed by worker services.</p>
 <p>The Results field contains all individual test results associated with this scan, loaded via GORM's foreign key relationship.</p>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Scan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="c1">// ID is the unique identifier for the scan (UUIDv7)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">ID</span><span class="w">  </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w"> </span><span class="s">`gorm:&quot;type:uuid;primary_key;&quot; json:&quot;id&quot;`</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="c1">// TargetURL is the URL that was scanned for security issues</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;target_url&quot;`</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="c1">// Status indicates the current state of the scan (PENDING, RUNNING, COMPLETED, FAILED)</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nx">Status</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;status&quot;`</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="c1">// CreatedAt is the timestamp when the scan was submitted</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nx">CreatedAt</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;created_at&quot;`</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="c1">// StartedAt is the timestamp when a worker began processing the scan (nil if not started)</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="nx">StartedAt</span><span class="w"> </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;started_at&quot;`</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">    </span><span class="c1">// CompletedAt is the timestamp when the scan finished (nil if not completed)</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="nx">CompletedAt</span><span class="w"> </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;completed_at&quot;`</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">    </span><span class="c1">// Results contains all individual test results for this scan</span>
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span><span class="nx">Results</span><span class="w"> </span><span class="p">[]</span><span class="nx">ScanResult</span><span class="w"> </span><span class="s">`gorm:&quot;foreignKey:ScanID;constraint:-&quot; json:&quot;results&quot;`</span>
-</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Scan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="c1">// ID is the unique identifier for the scan (UUIDv7)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nx">ID</span><span class="w">  </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w"> </span><span class="s">`gorm:&quot;type:uuid;primary_key;&quot; json:&quot;id&quot;`</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="c1">// TargetURL is the URL that was scanned for security issues</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nx">TargetURL</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;target_url&quot;`</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="c1">// Status indicates the current state of the scan (PENDING, RUNNING, COMPLETED, FAILED)</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nx">Status</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;status&quot;`</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="c1">// CreatedAt is the timestamp when the scan was submitted</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="nx">CreatedAt</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;created_at&quot;`</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="c1">// StartedAt is the timestamp when a worker began processing the scan (nil if not started)</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="nx">StartedAt</span><span class="w"> </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;started_at&quot;`</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="c1">// CompletedAt is the timestamp when the scan finished (nil if not completed)</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="nx">CompletedAt</span><span class="w"> </span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;completed_at&quot;`</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="c1">// Results contains all individual test results for this scan</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">    </span><span class="nx">Results</span><span class="w"> </span><span class="p">[]</span><span class="nx">ScanResult</span><span class="w"> </span><span class="s">`gorm:&quot;foreignKey:ScanID;constraint:-&quot; json:&quot;results&quot;`</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="ScanResult"></a></p>
 <h2 id="type-scanresult">type ScanResult<a class="headerlink" href="#type-scanresult" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanResult</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">       </span><span class="kt">uint</span><span class="w">      </span><span class="s">`gorm:&quot;primaryKey&quot; json:&quot;id&quot;`</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nx">ScanID</span><span class="w">   </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w"> </span><span class="s">`gorm:&quot;type:uuid;index&quot; json:&quot;scan_id&quot;`</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nx">TestName</span><span class="w"> </span><span class="kt">string</span><span class="w">    </span><span class="s">`json:&quot;test_name&quot;`</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nx">Severity</span><span class="w"> </span><span class="kt">string</span><span class="w">    </span><span class="s">`json:&quot;severity&quot;`</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nx">Passed</span><span class="w">   </span><span class="kt">bool</span><span class="w">      </span><span class="s">`json:&quot;passed&quot;`</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nx">Message</span><span class="w">  </span><span class="kt">string</span><span class="w">    </span><span class="s">`gorm:&quot;type:text&quot; json:&quot;message&quot;`</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="nx">Metadata</span><span class="w"> </span><span class="nx">datatypes</span><span class="p">.</span><span class="nx">JSON</span><span class="w"> </span><span class="s">`json:&quot;metadata&quot;`</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ScanResult</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">       </span><span class="kt">uint</span><span class="w">      </span><span class="s">`gorm:&quot;primaryKey&quot; json:&quot;id&quot;`</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nx">ScanID</span><span class="w">   </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w"> </span><span class="s">`gorm:&quot;type:uuid;index&quot; json:&quot;scan_id&quot;`</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nx">TestName</span><span class="w"> </span><span class="kt">string</span><span class="w">    </span><span class="s">`json:&quot;test_name&quot;`</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nx">Severity</span><span class="w"> </span><span class="kt">string</span><span class="w">    </span><span class="s">`json:&quot;severity&quot;`</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nx">Passed</span><span class="w">   </span><span class="kt">bool</span><span class="w">      </span><span class="s">`json:&quot;passed&quot;`</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nx">Message</span><span class="w">  </span><span class="kt">string</span><span class="w">    </span><span class="s">`gorm:&quot;type:text&quot; json:&quot;message&quot;`</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nx">Metadata</span><span class="w"> </span><span class="nx">datatypes</span><span class="p">.</span><span class="nx">JSON</span><span class="w"> </span><span class="s">`json:&quot;metadata&quot;`</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><a name="User"></a></p>
 <h2 id="type-user">type User<a class="headerlink" href="#type-user" title="Permanent link">&para;</a></h2>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">User</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">        </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w"> </span><span class="s">`gorm:&quot;type:uuid;primary_key;&quot; json:&quot;id&quot;`</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nx">FullName</span><span class="w">  </span><span class="kt">string</span><span class="w">    </span><span class="s">`json:&quot;full_name&quot;`</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nx">Email</span><span class="w">     </span><span class="kt">string</span><span class="w">    </span><span class="s">`gorm:&quot;uniqueIndex; not null&quot; json:&quot;email&quot;`</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nx">CreatedAt</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;created_at&quot;`</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nx">Password</span><span class="w">  </span><span class="p">[]</span><span class="kt">byte</span><span class="w">    </span><span class="s">`json:&quot;-&quot;`</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">User</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="nx">ID</span><span class="w">        </span><span class="nx">uuid</span><span class="p">.</span><span class="nx">UUID</span><span class="w"> </span><span class="s">`gorm:&quot;type:uuid;primary_key;&quot; json:&quot;id&quot;`</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="nx">FullName</span><span class="w">  </span><span class="kt">string</span><span class="w">    </span><span class="s">`json:&quot;full_name&quot;`</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nx">Email</span><span class="w">     </span><span class="kt">string</span><span class="w">    </span><span class="s">`gorm:&quot;uniqueIndex; not null&quot; json:&quot;email&quot;`</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nx">Role</span><span class="w">      </span><span class="kt">string</span><span class="w">    </span><span class="s">`gorm:&quot;type:varchar(32);not null;default:user;index&quot; json:&quot;role&quot;`</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nx">CreatedAt</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:&quot;created_at&quot;`</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nx">Password</span><span class="w">  </span><span class="p">[]</span><span class="kt">byte</span><span class="w">    </span><span class="s">`json:&quot;-&quot;`</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>Generated by <a href="https://github.com/princjef/gomarkdoc">gomarkdoc</a></p>
 
@@ -1068,7 +1099,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="April 15, 2026 12:22:48 UTC"><span class="timeago" datetime="2026-04-15T12:22:48+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 15, 2026 12:22:48 UTC">2026-04-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="April 21, 2026 07:19:51 UTC"><span class="timeago" datetime="2026-04-21T07:19:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 21, 2026 07:19:51 UTC">2026-04-21</span>
   </span>
 
     
@@ -1078,7 +1109,7 @@
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="April 15, 2026 12:22:48 UTC"><span class="timeago" datetime="2026-04-15T12:22:48+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 15, 2026 12:22:48 UTC">2026-04-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="April 21, 2026 07:19:51 UTC"><span class="timeago" datetime="2026-04-21T07:19:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 21, 2026 07:19:51 UTC">2026-04-21</span>
   </span>
 
     
