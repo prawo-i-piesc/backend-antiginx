@@ -74,6 +74,16 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
+		//Tutaj karol masz enpointa
+		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
+	}
+
+	admin := r.Group("/api/admin")
+	admin.Use(middleware.RequireAuth(), middleware.RequireAdmin(authHandler.DB()))
+	{
+		admin.GET("/health", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
 	}
 
 	return r
