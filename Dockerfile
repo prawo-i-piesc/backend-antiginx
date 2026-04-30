@@ -43,7 +43,6 @@ COPY go.mod ./
 COPY go.sum ./
 
 COPY --from=deps /go/pkg/mod /go/pkg/mod
-COPY --from=deps /root/.cache/go-build /root/.cache/go-build
 
 COPY . .
 
