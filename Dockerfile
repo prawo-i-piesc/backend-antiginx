@@ -39,6 +39,12 @@ ARG TARGETARCH
 
 WORKDIR /app
 
+COPY go.mod ./
+COPY go.sum ./
+
+COPY --from=deps /go/pkg/mod /go/pkg/mod
+COPY --from=deps /root/.cache/go-build /root/.cache/go-build
+
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o ./${BACKEND_BINARY_NAME} .
@@ -49,6 +55,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o ./${BACKEND_BINARY
 FROM run AS runner
 
 ARG BACKEND_BINARY_NAME
+ENV BACKEND_BINARY_NAME=${BACKEND_BINARY_NAME}
 
 ARG USERNAME
 ARG GROUPNAME
@@ -68,4 +75,5 @@ COPY --from=build --chown=${USERNAME}:${GROUPNAME} /app/${BACKEND_BINARY_NAME} .
 USER ${USERNAME}
 
 EXPOSE 4000
-CMD ["./${BACKEND_BINARY_NAME}"]
+
+CMD ["sh", "-c", "./$BACKEND_BINARY_NAME"]
