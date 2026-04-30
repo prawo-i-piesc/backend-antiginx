@@ -1,29 +1,167 @@
-# Pliki binarne
+# ------------------------------------------
+# .gitignore for GO projects
+# ------------------------------------------
+
+
+# ------------------------------------------
+# Binaries
+# ------------------------------------------
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-*.out
 
-# Plik wykonywalny z budowania (użyjemy np. nazwy 'api' i 'worker')
-/api
-/worker
 
-# Archiwa testowe
+# ------------------------------------------
+# Test binary
+# ------------------------------------------
 *.test
 
-# Foldery systemowe
-.DS_Store
-*._*
 
-# Foldery IDE
-.idea/
-.vscode/
+# ------------------------------------------
+# Code coverage profiles and other test artifacts
+# ------------------------------------------
+*.out
+coverage.*
+*.coverprofile
+profile.cov
 
-# Zmienne środowiskowe
-.env
-*.env
 
-# Pliki tymczasowe Go
+# ------------------------------------------
+# Go workspace file
+# ------------------------------------------
 go.work
+go.work.sum
+
+
+# ------------------------------------------
+# Local env files
+# ------------------------------------------
+.env
+.env*.local
+
+
+# ------------------------------------------
+# ------------------------------------------
+# Other files and directories to ignore
+# ------------------------------------------
+# ------------------------------------------
+
+
+# ------------------------------------------
+# System Files and OS Artifacts
+# ------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+.Trash/
+.CFUserTextEncoding
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.cab
+*.lnk
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+.fuse_hidden*
+.Xauthority
+
+
+# ------------------------------------------
+# Code Editor and IDE Files
+# ------------------------------------------
+# Vim
+*.swp
+*.swo
+.netrwhist
+*~
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/keybindings.json
+
+# JetBrains
+.idea/
+*.iml
+
+
+# ------------------------------------------
+# Temporary and Backup Files
+# ------------------------------------------
+*.bak
+*.tmp
+*.temp
+*.dockerfile.bak
+
+
+# ------------------------------------------
+# Archive and Compressed Files
+# ------------------------------------------
+*.7z
+*.bz2
+*.bzip
+*.bzip2
+*.gz
+*.gzip
+*.jar
+*.lzma
+*.rar
+*.tar.gz
+*.tgz
+*.xar
+*.xz
+*.zip
+*.iso
+*.dmg
+*.deb
+*.egg
+*.gem
+*.msi
+*.msm
+*.msp
+*.rpm
+*.txz
+*.xpi
+
+
+# ------------------------------------------
+# Security-Sensitive Files and Credentials
+# ------------------------------------------
+.ssh/*
+.gnupg/
+.aws/
+.azure/
+.kube/config
+*.pem
+*.key
+.netrc
+.npmrc
+.env
+.env.*
+!.env.example
+.docker/config.json
+.gcloud/
+.config/gh/
+*.p12
+*.pfx

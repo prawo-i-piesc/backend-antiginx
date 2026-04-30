@@ -1,81 +1,93 @@
-# {{{1 docker
-**/.classpath
-**/.dockerignore
-**/.env
-**/.git
-**/.gitignore
-**/.project
-**/.settings
-**/.toolstarget
-**/.vs
-**/.vscode
-**/*.*proj.user
-**/*.dbmdl
-**/*.jfm
-**/azds.yaml
-**/bin
-**/charts
-**/docker-compose*
-**/Dockerfile*
-**/node_modules
-**/npm-debug.log
-**/obj
-**/secrets.dev.yaml
-**/values.dev.yaml
-LICENSE
-README.md
-# }}}1
-
-# {{{1 go
+# ------------------------------------------
+# Go build artifacts
+# ------------------------------------------
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
 *.test
-
 *.out
+*.prof
+bin/
+dist/
+build/
+
+# ------------------------------------------
+# Go workspaces and local tools
+# ------------------------------------------
 go.work
-# }}}1
+go.work.sum
 
-## {{{1 os
-.DS_Store
+# ------------------------------------------
+# Local development and editor files
+# ------------------------------------------
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.log
+
+# ------------------------------------------
+# Environment variables
+# ------------------------------------------
+.env
+.env*.local
+.env.development
+.env.test
+.env.production.local
+
+# ------------------------------------------
+# Docker configuration files
+# ------------------------------------------
+.dockerignore
+compose.yaml
+compose.yml
+docker-compose*.yaml
+docker-compose*.yml
+
+# ------------------------------------------
+# Documentation
+# ------------------------------------------
+*.md
+docs/
+
+# ------------------------------------------
+# CI/CD configuration files
+# ------------------------------------------
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+Jenkinsfile
+
+# ------------------------------------------
+# Cache directories and temporary data
+# ------------------------------------------
+.cache/
+.tmp/
+.temp/
+
+# ------------------------------------------
+# Sensitive or unnecessary configuration files
+# ------------------------------------------
 *.pem
-## }}}1
+.editorconfig
+*.iml
+*.ipr
+*.iws
 
-## {{{1 ide
-.idea
-.vscode
-## }}}1
-
-## {{{1 archives
-*.7z
-*.bz2
-*.bzip
-*.bzip2
-*.cab
-*.gz
-*.gzip
-*.jar
-*.lzma
-*.rar
-*.tar.gz
-*.tgz
-*.xar
-*.xz
-*.zip
-
-*.iso
-*.dmg
-
-*.deb
-*.egg
-*.gem
-*.msi
-*.msm
-*.msp
-*.rpm
-*.txz
-*.xpi
-## }}}1
+# ------------------------------------------
+# OS-specific junk
+# ------------------------------------------
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
