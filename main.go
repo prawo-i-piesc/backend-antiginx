@@ -91,17 +91,62 @@ func main() {
 		}
 	}()
 
-	_, err = ch.QueueDeclare(
-		"scan_queue", // name
-		true,         // durable
-		false,        // delete when unused
-		false,        // exclusive
-		false,        // no-wait
-		nil,          // arguments
+	err = ch.ExchangeDeclare("main_exchange", "direct", true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Failed to declare main_exchange: %v", err)
+	}
+
+	err = ch.ExchangeDeclare("retry_exchange", "direct", true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Failed to declare retry_exchange: %v", err)
+	}
+
+	scanQueueArgs := amqp.Table{
+		"x-dead-letter-exchange":    "retry_exchange",
+		"x-dead-letter-routing-key": "retry_key",
+	}
+
+	scanQueue, err := ch.QueueDeclare(
+		"scan_queue",  // name
+		true,          // durable
+		false,         // delete when unused
+		false,         // exclusive
+		false,         // no-wait
+		scanQueueArgs, // arguments
 	)
+
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
+	err = ch.QueueBind(scanQueue.Name, "scan_key", "main_exchange", false, nil)
+	if err != nil {
+		log.Fatalf("Failed to bind scan_queue: %v", err)
+	}
+
+	waitQueueArgs := amqp.Table{
+		"x-message-ttl":             int32(5000),
+		"x-dead-letter-exchange":    "main_exchange",
+		"x-dead-letter-routing-key": "scan_key",
+	}
+
+	waitQueue, err := ch.QueueDeclare(
+		"wait_queue",
+		true,
+		false,
+		false,
+		false,
+		waitQueueArgs,
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare wait_queue: %v", err)
+	}
+
+	err = ch.QueueBind(waitQueue.Name, "retry_key", "retry_exchange", false, nil)
+	if err != nil {
+		log.Fatalf("Failed to bind wait_queue: %v", err)
+	}
+
+	log.Println("RabbitMQ queues successfully configured")
 
 	scanHandler := handlers.NewScanHandler(ch, db)
 	authHandler := handlers.NewAuthHandler(db)

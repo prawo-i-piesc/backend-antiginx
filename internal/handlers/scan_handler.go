@@ -155,8 +155,8 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 	}
 
 	err = h.amqpChannel.PublishWithContext(c.Request.Context(),
-		"",
-		"scan_queue",
+		"main_exchange",
+		"scan_key",
 		false,
 		false,
 		amqp.Publishing{
