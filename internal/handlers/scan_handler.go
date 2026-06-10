@@ -516,17 +516,13 @@ func (h *ScanHandler) HandleUserDashboardWidgets(c *gin.Context) {
 	var safeSites int64
 	var recentScans []models.PremiumScan
 
-	// 1. Total Scans (Wszystkie skany premium danego użytkownika)
 	h.db.Model(&models.PremiumScan{}).Where("user_id = ?", userUUID).Count(&totalScans)
 
-	// 2. Detected Threats (Suma wykrytych podatności - tylko failed - w skanach usera)
 	h.db.Model(&models.ScanResult{}).
 		Joins("JOIN premium_scans ON premium_scans.id = scan_results.scan_id").
 		Where("premium_scans.user_id = ? AND scan_results.passed = ?", userUUID, false).
 		Count(&detectedThreats)
 
-	// 3. Safe Sites
-	// Szukamy UNIKALNYCH URL-i, gdzie ICH NAJNOWSZY SKAN ZE STATUSEM 'COMPLETED' NIE ma oblanych testów.
 	subQueryMaxTime := h.db.Model(&models.PremiumScan{}).
 		Select("MAX(created_at)").
 		Where("target_url = premium_scans.target_url AND user_id = premium_scans.user_id AND status = ?", "COMPLETED")
@@ -539,10 +535,9 @@ func (h *ScanHandler) HandleUserDashboardWidgets(c *gin.Context) {
 		Where("user_id = ? AND status = ?", userUUID, "COMPLETED").
 		Where("created_at = (?)", subQueryMaxTime).
 		Where("NOT EXISTS (?)", subQueryThreats).
-		Distinct("target_url"). // Zliczamy tylko unikalne domeny/URL-e
+		Distinct("target_url").
 		Count(&safeSites)
 
-	// 4. Recent Scans (Najnowsze, omijające testy PENDING w kolejce)
 	result := h.db.Where("user_id = ? AND status != ?", userUUID, "PENDING").
 		Order("created_at desc").
 		Limit(4).
@@ -554,15 +549,14 @@ func (h *ScanHandler) HandleUserDashboardWidgets(c *gin.Context) {
 		return
 	}
 
-	// Formatowanie recent_scans do ujednoliconej struktury
-	mappedRecentScans := make([]UserDashboardScan, 0) // Zabezpieczenie przed `null` w JSON (będzie pusta tablica `[]`)
+	mappedRecentScans := make([]UserDashboardScan, 0)
 	for _, s := range recentScans {
 		mappedRecentScans = append(mappedRecentScans, UserDashboardScan{
 			ID:        s.ID.String(),
 			TargetURL: s.TargetURL,
 			Status:    s.Status,
 			CreatedAt: s.CreatedAt,
-			Type:      "premium", // W tym widoku rozpatrujemy tylko premium
+			Type:      "premium",
 		})
 	}
 
