@@ -32,7 +32,7 @@ import (
 //	handler := handlers.NewScanHandler(amqpChannel, db)
 //	router := api.NewRouter(handler)
 //	router.Run(":8080")
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler) *gin.Engine {
 	r := gin.Default()
 
 	// TODO : Ograniczyć domeny w produkcji
@@ -84,6 +84,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		admin.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
+		admin.GET("/database", adminHandler.HandleGetDatabaseInfo)
 	}
 
 	return r
