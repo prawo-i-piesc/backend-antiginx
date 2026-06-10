@@ -84,11 +84,8 @@ type ScanTaskMessage struct {
 	TargetURL string `json:"target_url"`
 }
 
-var AvailableTestsList = []string{
-	"https", "hsts", "serv-h-a", "csp", "cookie-sec",
-	"js-obf", "xframe", "permissions-policy", "x-content-type-options",
-	"referrer-policy", "cross-origin-x",
-}
+var AvailableTestsList = []string{"https", "hsts", "serv-h-a", "csp", "cookie-sec", "js-obf", "xframe", "permissions-policy",
+	"x-content-type-options", "referrer-policy", "ssl-cert", "cross-origin-x", "sitemap", "phishing-url"}
 
 var AllowedPremiumTests = func() map[string]bool {
 	m := make(map[string]bool)
