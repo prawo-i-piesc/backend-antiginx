@@ -75,4 +75,4 @@ USER ${USERNAME}
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "./$BACKEND_BINARY_NAME"]
+CMD ["/app/backend]"]
