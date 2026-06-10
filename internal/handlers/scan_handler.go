@@ -84,6 +84,14 @@ type ScanTaskMessage struct {
 	TargetURL string `json:"target_url"`
 }
 
+type UserDashboardScan struct {
+	ID        string    `json:"id"`
+	TargetURL string    `json:"target_url"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	Type      string    `json:"type"`
+}
+
 var AvailableTestsList = []string{"https", "hsts", "serv-h-a", "csp", "cookie-sec", "js-obf", "xframe", "permissions-policy",
 	"x-content-type-options", "referrer-policy", "ssl-cert", "cross-origin-x", "sitemap", "phishing-url"}
 
@@ -482,4 +490,81 @@ func (h *ScanHandler) HandleUserScans(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, scans)
+}
+
+func (h *ScanHandler) HandleUserDashboardWidgets(c *gin.Context) {
+	userIDContext, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Brak autoryzacji"})
+		return
+	}
+
+	userIDStr, ok := userIDContext.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Błąd wewnętrzny serwera"})
+		return
+	}
+
+	userUUID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nieprawidłowy format ID użytkownika"})
+		return
+	}
+
+	var totalScans int64
+	var detectedThreats int64
+	var safeSites int64
+	var recentScans []models.PremiumScan
+
+	h.db.Model(&models.PremiumScan{}).Where("user_id = ?", userUUID).Count(&totalScans)
+
+	h.db.Model(&models.ScanResult{}).
+		Joins("JOIN premium_scans ON premium_scans.id = scan_results.scan_id").
+		Where("premium_scans.user_id = ? AND scan_results.passed = ?", userUUID, false).
+		Count(&detectedThreats)
+
+	subQueryMaxTime := h.db.Model(&models.PremiumScan{}).
+		Select("MAX(created_at)").
+		Where("target_url = premium_scans.target_url AND user_id = premium_scans.user_id AND status = ?", "COMPLETED")
+
+	subQueryThreats := h.db.Model(&models.ScanResult{}).
+		Select("1").
+		Where("scan_id = premium_scans.id AND passed = ?", false)
+
+	h.db.Model(&models.PremiumScan{}).
+		Where("user_id = ? AND status = ?", userUUID, "COMPLETED").
+		Where("created_at = (?)", subQueryMaxTime).
+		Where("NOT EXISTS (?)", subQueryThreats).
+		Distinct("target_url").
+		Count(&safeSites)
+
+	result := h.db.Where("user_id = ? AND status != ?", userUUID, "PENDING").
+		Order("created_at desc").
+		Limit(4).
+		Find(&recentScans)
+
+	if result.Error != nil {
+		log.Printf("Błąd pobierania najnowszych skanów usera: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Błąd pobierania najnowszych skanów"})
+		return
+	}
+
+	mappedRecentScans := make([]UserDashboardScan, 0)
+	for _, s := range recentScans {
+		mappedRecentScans = append(mappedRecentScans, UserDashboardScan{
+			ID:        s.ID.String(),
+			TargetURL: s.TargetURL,
+			Status:    s.Status,
+			CreatedAt: s.CreatedAt,
+			Type:      "premium",
+		})
+	}
+
+	// Zwracamy paczkę danych
+	c.JSON(http.StatusOK, gin.H{
+		"total_scans":      totalScans,
+		"detected_threats": detectedThreats,
+		"safe_sites":       safeSites,
+		"recent_scans":     mappedRecentScans,
+	})
 }

@@ -74,6 +74,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
+		protected.GET("/users/widgets", scanHandler.HandleUserDashboardWidgets)
 		//Tutaj karol masz enpointa
 		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
 	}
@@ -85,6 +86,8 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 		admin.GET("/database", adminHandler.HandleGetDatabaseInfo)
+
+		admin.GET("/widgets", adminHandler.HandleGetDashboardWidgets)
 	}
 
 	return r
