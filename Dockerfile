@@ -75,4 +75,4 @@ USER ${USERNAME}
 
 EXPOSE 4000
 
-CMD ["/app/backend]"]
+CMD ["/app/backend"]
