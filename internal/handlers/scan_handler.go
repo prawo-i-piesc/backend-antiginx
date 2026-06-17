@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -34,6 +35,7 @@ type PremiumScanRequest struct {
 	TargetURL        string   `json:"target_url" binding:"required"`
 	Tests            []string `json:"tests" binding:"required,min=1"`
 	AuthorizedTester bool     `json:"authorized_tester"`
+	AntiBotDetection bool     `json:"anti_bot_detection"`
 }
 
 type CommandParameter struct {
@@ -54,10 +56,25 @@ type EngineTestResult struct {
 	Description string      `json:"Description"`
 }
 
+type ResultType int
+
+const (
+	Message ResultType = iota
+	Success
+)
+
+type RequestInfo struct {
+	Message string `json:"Message"`
+	Code    int    `json:"Code"`
+}
+
 type AsyncResultRequest struct {
-	Target string           `json:"target"`
-	TestID string           `json:"testId"`
-	Result EngineTestResult `json:"result"`
+	Target      string           `json:"target"`
+	TestID      string           `json:"testId"`
+	Result      EngineTestResult `json:"result"`
+	EndFlag     bool             `json:"endFlag"`
+	ResultType  ResultType       `json:"resultType"`
+	ProcessInfo RequestInfo      `json:"message"`
 }
 
 type ResultSubmissionRequest struct {
@@ -191,6 +208,8 @@ func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Raw request data received: %+v", req)
+
 	scanUUID, err := uuid.Parse(req.TestID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Scan ID format (from testId field)"})
@@ -209,6 +228,60 @@ func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Scan not found in database"})
 			return
 		}
+	}
+
+	if !req.EndFlag && req.ResultType == Message {
+		testName := req.Result.Name
+		if testName == "" {
+			testName = "Engine/Execution Error"
+		}
+
+		newResult := models.ScanResult{
+			ScanID:   scanUUID,
+			TestName: testName,
+			Severity: "Info",
+			Passed:   true,
+			Message:  fmt.Sprintf("%s (Code: %d) - %s", req.ProcessInfo.Message, req.ProcessInfo.Code, "Perhaps you can use antibot detection to prevent this from happening."),
+			Metadata: datatypes.JSON([]byte(`{}`)),
+		}
+
+		err = h.db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Create(&newResult).Error; err != nil {
+				return err
+			}
+
+			now := time.Now()
+			if isPremium {
+				if err := tx.Model(&models.PremiumScan{ID: scanUUID}).
+					Where("status = ?", "PENDING").
+					Updates(map[string]interface{}{
+						"status":     "RUNNING",
+						"started_at": &now,
+					}).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Model(&models.Scan{ID: scanUUID}).
+					Where("status = ?", "PENDING").
+					Updates(map[string]interface{}{
+						"status":     "RUNNING",
+						"started_at": &now,
+					}).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			log.Printf("Transaction failed for crash result: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save crash result"})
+			return
+		}
+
+		log.Printf("Test crashed/blocked for scan %s: %s", scanUUID, req.ProcessInfo.Message)
+		c.JSON(http.StatusOK, gin.H{"message": "Crash result logged successfully"})
+		return
 	}
 
 	if req.Result.Name == "" {
@@ -385,6 +458,13 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 				},
 			},
 		},
+	}
+
+	if req.AntiBotDetection {
+		task.Parameters = append(task.Parameters, CommandParameter{
+			Name:      "--antiBotDetection",
+			Arguments: []string{},
+		})
 	}
 
 	jsonBytes, err := json.Marshal(task)
