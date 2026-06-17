@@ -109,8 +109,41 @@ type UserDashboardScan struct {
 	Type      string    `json:"type"`
 }
 
-var AvailableTestsList = []string{"https", "hsts", "serv-h-a", "csp", "cookie-sec", "js-obf", "xframe", "permissions-policy",
-	"x-content-type-options", "referrer-policy", "ssl-cert", "cross-origin-x", "sitemap", "phishing-url"}
+type TestCategoryGroup struct {
+	CategoryName string   `json:"category"`
+	Tests        []string `json:"tests"`
+}
+
+var CategorizedTests = []TestCategoryGroup{
+	{
+		CategoryName: "SSL/TLS & Encryption",
+		Tests:        []string{"https", "hsts", "ssl-cert"},
+	},
+	{
+		CategoryName: "Security Headers",
+		Tests:        []string{"csp", "xframe", "permissions-policy", "x-content-type-options", "referrer-policy", "cross-origin-x"},
+	},
+	{
+		CategoryName: "Privacy & Session Management",
+		Tests:        []string{"cookie-sec"},
+	},
+	{
+		CategoryName: "Reconnaissance & Server Information",
+		Tests:        []string{"serv-h-a", "sitemap"},
+	},
+	{
+		CategoryName: "Vulnerabilities & Code Analysis",
+		Tests:        []string{"js-obf", "phishing-url"},
+	},
+}
+
+var AvailableTestsList = func() []string {
+	var list []string
+	for _, group := range CategorizedTests {
+		list = append(list, group.Tests...)
+	}
+	return list
+}()
 
 var AllowedPremiumTests = func() map[string]bool {
 	m := make(map[string]bool)
