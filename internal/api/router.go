@@ -77,6 +77,9 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/users/widgets", scanHandler.HandleUserDashboardWidgets)
 		//Tutaj karol masz enpointa
 		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
+		protected.PATCH("/utils/profile/name", authHandler.HandleUpdateFullName)
+		protected.PATCH("/utils/profile/email", authHandler.HandleUpdateEmail)
+		protected.PATCH("/utils/profile/password", authHandler.HandleUpdatePassword)
 	}
 
 	admin := r.Group("/api/admin")
