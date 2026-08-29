@@ -9,37 +9,25 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/middleware"
 )
 
-// NewRouter creates and configures a new Gin router with all API endpoints.
-//
-// The router exposes the following public endpoints under /api prefix:
-//
-//   - POST /api/scans    - Submit a new security scan request
-//   - POST /api/results  - Submit scan results from a worker
-//   - GET  /api/scans/:id - Retrieve scan details and results by ID
-//
-// Parameters:
-//   - scanHandler: Handler instance containing business logic for scan operations
-//
-// Returns:
-//   - *gin.Engine: Configured Gin router ready to serve HTTP requests
-//
-// Example:
-//
-//	handler := handlers.NewScanHandler(amqpChannel, db)
-//	router := api.NewRouter(handler)
-//	router.Run(":8080")
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler) *gin.Engine {
-	r := gin.Default()
+var quietPaths = []string{"/api/auth/refresh"}
 
-	// TODO : Ograniczyć domeny w produkcji
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config) *gin.Engine {
+	httpx.RegisterValidationFieldNames()
+
+	r := gin.New()
+	r.Use(
+		gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: quietPaths}),
+		gin.Recovery(),
+	)
+
 	r.Use(cors.New(cors.Config{
-		AllowOriginFunc: func(origin string) bool {
-			return true
-		},
+		AllowOrigins:     []string{cfg.PublicBaseURL},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -68,7 +56,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	}
 
 	protected := r.Group("/api")
-	protected.Use(middleware.RequireAuth())
+	protected.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		protected.GET("/auth/me", authHandler.Me)
 		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
@@ -83,7 +71,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	}
 
 	admin := r.Group("/api/admin")
-	admin.Use(middleware.RequireAuth(), middleware.RequireAdmin(authHandler.DB()))
+	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{
 		admin.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})

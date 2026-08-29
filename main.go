@@ -21,10 +21,9 @@ package main
 import (
 	"log"
 
-	"os"
-
 	"github.com/joho/godotenv"
 	"github.com/prawo-i-piesc/backend/internal/api"
+	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -48,8 +47,13 @@ func main() {
 		log.Println("Info: Nie znaleziono pliku .env, używam zmiennych środowiskowych")
 	}
 	log.Println("Uruchamiam serwer API...")
-	dsn := os.Getenv("DATABASE_URL")
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Nieprawidłowa konfiguracja: %v", err)
+	}
+
+	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{TranslateError: true})
 	if err != nil {
 		log.Fatalf("Nie udało się połączyć z bazą danych: %v", err)
 	}
@@ -67,7 +71,7 @@ func main() {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 
-	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
+	conn, err := amqp.Dial(cfg.RabbitMQURL)
 	if err != nil {
 		log.Fatalf("Nie udało się połączyć z RabbitMQ: %v", err)
 	}
@@ -149,10 +153,10 @@ func main() {
 	log.Println("RabbitMQ queues successfully configured")
 
 	scanHandler := handlers.NewScanHandler(ch, db)
-	authHandler := handlers.NewAuthHandler(db)
+	authHandler := handlers.NewAuthHandler(db, cfg)
 	adminHandler := handlers.NewAdminHandler(db)
 
-	router := api.NewRouter(scanHandler, authHandler, adminHandler)
+	router := api.NewRouter(scanHandler, authHandler, adminHandler, cfg)
 
 	if err := router.Run(":4000"); err != nil {
 		log.Fatalf("Could not start server: %v", err)

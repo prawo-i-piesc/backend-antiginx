@@ -67,3 +67,15 @@ jobs:
                 echo "❌ Compilation failed. Please fix the errors above."
                 exit 1
             fi
+
+        - name: 🧪 Go -- Test Unit Tests
+          run: |
+            echo "⚙️ Running unit tests..."
+            if go test -race ./...; then
+                echo ""
+                echo "✅ All tests passed."
+            else
+                echo ""
+                echo "❌ Tests failed. Please fix the failures above."
+                exit 1
+            fi

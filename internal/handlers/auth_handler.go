@@ -4,17 +4,20 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"os"
-	"strings"
+
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/config"
+	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
+
+const bcryptCost = 12
 
 type UpdateNameRequest struct {
 	FullName string `json:"full_name" binding:"required,min=6"`
@@ -30,7 +33,8 @@ type UpdatePasswordRequest struct {
 }
 
 type AuthHandler struct {
-	db *gorm.DB
+	db  *gorm.DB
+	cfg *config.Config
 }
 
 type RegisterRequest struct {
@@ -41,12 +45,13 @@ type RegisterRequest struct {
 
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
+	Password string `json:"password" binding:"required"`
 }
 
-func NewAuthHandler(db *gorm.DB) *AuthHandler {
+func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
-		db: db,
+		db:  db,
+		cfg: cfg,
 	}
 }
 
@@ -55,85 +60,105 @@ func (h *AuthHandler) DB() *gorm.DB {
 }
 
 func (h *AuthHandler) GenerateToken(userID string, role string) (string, error) {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		return "", errors.New("JWT_SECRET is not defined in environment variables")
+	return auth.GenerateToken(h.cfg.JWTSecret, auth.TokenTypeAccess, userID, role, h.cfg.AccessTokenTTL)
+}
+
+func byEmail(db *gorm.DB, email string) *gorm.DB {
+	return db.Where("lower(email) = ?", email)
+}
+
+func currentUserID(c *gin.Context) (string, bool) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		log.Printf("Handler: brak userID w kontekście — trasa poza RequireAuth")
+		httpx.Fail(c, httpx.CodeInternal)
+		return "", false
 	}
 
-	normalizedRole := strings.ToLower(strings.TrimSpace(role))
-	if normalizedRole == "" {
-		normalizedRole = models.UserRoleUser
+	userIDStr, ok := userID.(string)
+	if !ok || userIDStr == "" {
+		log.Printf("Handler: userID w kontekście ma nieoczekiwany typ %T", userID)
+		httpx.Fail(c, httpx.CodeInternal)
+		return "", false
+	}
+	return userIDStr, true
+}
+
+func (h *AuthHandler) loadCurrentUser(c *gin.Context, user *models.User) bool {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return false
 	}
 
-	claims := jwt.MapClaims{
-		"sub":  userID,
-		"role": normalizedRole,
-		"exp":  time.Now().Add(time.Hour * 1).Unix(),
-		"iat":  time.Now().Unix(),
-		"iss":  "backend-antiginx",
+	if err := h.db.Where("id = ?", userID).First(user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			httpx.Fail(c, httpx.CodeSessionExpired)
+			return false
+		}
+		log.Printf("Nie udało się pobrać użytkownika %s: %v", userID, err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return false
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	signedToken, err := token.SignedString([]byte(secret))
-	if err != nil {
-		return "", err
-	}
-
-	return signedToken, nil
+	return true
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	var existingUser models.User
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("Binding error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		httpx.FailValidation(c, err)
 		return
 	}
 
-	resultEmailCheck := h.db.Where("email = ?", req.Email).First(&existingUser)
+	email := auth.NormalizeEmail(req.Email)
+
+	resultEmailCheck := byEmail(h.db, email).First(&existingUser)
 
 	if resultEmailCheck.Error == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "User with this email already exists"})
+		httpx.Fail(c, httpx.CodeEmailTaken)
 		return
 	}
 
-	if resultEmailCheck.Error != gorm.ErrRecordNotFound {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+	if !errors.Is(resultEmailCheck.Error, gorm.ErrRecordNotFound) {
+		log.Printf("Register: błąd bazy danych przy sprawdzaniu adresu e-mail: %v", resultEmailCheck.Error)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
 	newUserID, err := uuid.NewV7()
 	if err != nil {
-		log.Printf("Failed to generate UUIDv7: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Register: nie udało się wygenerować UUIDv7: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
-	passwordBytes := []byte(req.Password)
 
-	HashedPassword, err := bcrypt.GenerateFromPassword(passwordBytes, 12)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcryptCost)
 	if err != nil {
-		log.Printf("Failed to encrypt provided password: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Register: nie udało się zahaszować hasła: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
 	newUser := models.User{
 		ID:        newUserID,
 		FullName:  req.FullName,
-		Email:     req.Email,
+		Email:     email,
 		Role:      models.UserRoleUser,
 		CreatedAt: time.Now(),
-		Password:  HashedPassword,
+		Password:  hashedPassword,
 	}
 
-	resultCreateNewUser := h.db.Create(&newUser)
-	if resultCreateNewUser.Error != nil {
-		log.Printf("Failed to create new user in DB: %v", resultCreateNewUser.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new user"})
+	if err := h.db.Create(&newUser).Error; err != nil {
+
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			httpx.Fail(c, httpx.CodeEmailTaken)
+			return
+		}
+		log.Printf("Register: nie udało się utworzyć użytkownika: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User registered successfully",
 	})
@@ -143,105 +168,71 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	var existingUser models.User
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("Binding error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		httpx.FailValidation(c, err)
 		return
 	}
 
-	result := h.db.Where("email = ?", req.Email).First(&existingUser)
+	result := byEmail(h.db, auth.NormalizeEmail(req.Email)).First(&existingUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			httpx.Fail(c, httpx.CodeInvalidCredentials)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		log.Printf("Login: błąd bazy danych przy pobieraniu użytkownika: %v", result.Error)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
-	err := bcrypt.CompareHashAndPassword(existingUser.Password, []byte(req.Password))
-
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+	if err := bcrypt.CompareHashAndPassword(existingUser.Password, []byte(req.Password)); err != nil {
+		httpx.Fail(c, httpx.CodeInvalidCredentials)
 		return
 	}
 
 	token, err := h.GenerateToken(existingUser.ID.String(), existingUser.Role)
 	if err != nil {
-		log.Printf("Failed to generate token: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate token"})
+		log.Printf("Login: nie udało się wygenerować tokenu: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"token":      token,
-		"expires_in": 3600,
+		"expires_in": int(h.cfg.AccessTokenTTL.Seconds()),
 	})
-
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
-		return
-	}
-
-	userIDStr, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Access not authorized"})
-		return
-	}
-
-	var existingUser models.User
-	result := h.db.Where("id = ?", userIDStr).First(&existingUser)
-
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+	var user models.User
+	if !h.loadCurrentUser(c, &user) {
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":        existingUser.ID,
-		"full_name": existingUser.FullName,
-		"email":     existingUser.Email,
-		"role":      existingUser.Role,
+		"id":        user.ID,
+		"full_name": user.FullName,
+		"email":     user.Email,
+		"role":      user.Role,
 	})
 }
 
 func (h *AuthHandler) HandleUpdateFullName(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
-		return
-	}
-
-	userIDStr, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
 	var req UpdateNameRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		httpx.FailValidation(c, err)
 		return
 	}
 
 	var user models.User
-	if err := h.db.Where("id = ?", userIDStr).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+	if !h.loadCurrentUser(c, &user) {
 		return
 	}
 
 	user.FullName = req.FullName
 
 	if err := h.db.Save(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update name"})
+		log.Printf("UpdateFullName: nie udało się zapisać zmiany: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
@@ -249,42 +240,40 @@ func (h *AuthHandler) HandleUpdateFullName(c *gin.Context) {
 }
 
 func (h *AuthHandler) HandleUpdateEmail(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
-		return
-	}
-
-	userIDStr, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
 	var req UpdateEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		httpx.FailValidation(c, err)
 		return
 	}
 
 	var user models.User
-	if err := h.db.Where("id = ?", userIDStr).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+	if !h.loadCurrentUser(c, &user) {
 		return
 	}
 
-	if req.Email != user.Email {
-		var existingUser models.User
-		if err := h.db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Email is already in use"})
-			return
-		}
+	email := auth.NormalizeEmail(req.Email)
 
-		user.Email = req.Email
+	var existingUser models.User
+	err := byEmail(h.db, email).Where("id <> ?", user.ID).First(&existingUser).Error
+	switch {
+	case err == nil:
+		httpx.Fail(c, httpx.CodeEmailTaken)
+		return
+	case !errors.Is(err, gorm.ErrRecordNotFound):
+		log.Printf("UpdateEmail: błąd bazy danych przy sprawdzaniu adresu: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
 	}
 
+	user.Email = email
+
 	if err := h.db.Save(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update email"})
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			httpx.Fail(c, httpx.CodeEmailTaken)
+			return
+		}
+		log.Printf("UpdateEmail: nie udało się zapisać zmiany: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
@@ -292,44 +281,33 @@ func (h *AuthHandler) HandleUpdateEmail(c *gin.Context) {
 }
 
 func (h *AuthHandler) HandleUpdatePassword(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
-		return
-	}
-
-	userIDStr, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
 	var req UpdatePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		httpx.FailValidation(c, err)
 		return
 	}
 
 	var user models.User
-	if err := h.db.Where("id = ?", userIDStr).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+	if !h.loadCurrentUser(c, &user) {
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.Password, []byte(req.OldPassword)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid old password"})
+		httpx.Fail(c, httpx.CodeInvalidCredentials)
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 12)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcryptCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash new password"})
+		log.Printf("UpdatePassword: nie udało się zahaszować hasła: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 	user.Password = hashedPassword
 
 	if err := h.db.Save(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		log.Printf("UpdatePassword: nie udało się zapisać hasła: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 

@@ -1,18 +1,16 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
 )
 
-func RequireAuth() gin.HandlerFunc {
+func RequireAuth(secret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -29,31 +27,14 @@ func RequireAuth() gin.HandlerFunc {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		})
-
-		if err != nil || !token.Valid {
+		claims, err := auth.ParseToken(secret, tokenString, auth.TokenTypeAccess)
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			return
 		}
 
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			if sub, ok := claims["sub"].(string); ok {
-				c.Set("userID", sub)
-			} else {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-				return
-			}
-
-			if role, ok := claims["role"].(string); ok {
-				c.Set("userRole", strings.ToLower(strings.TrimSpace(role)))
-			}
-		}
+		c.Set("userID", claims.Subject)
+		c.Set("userRole", claims.Role)
 
 		c.Next()
 	}
