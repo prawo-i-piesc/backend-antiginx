@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 )
 
@@ -18,7 +20,7 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func guarded(t *testing.T, authHeader string) (status int, userID, role string) {
+func guarded(t *testing.T, authHeader string) (status int, code httpx.Code, userID, role string) {
 	t.Helper()
 
 	r := gin.New()
@@ -35,7 +37,15 @@ func guarded(t *testing.T, authHeader string) (status int, userID, role string) 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	return w.Code, userID, role
+	if w.Code != http.StatusOK {
+		var resp httpx.ErrorResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("odpowiedź nie jest poprawnym JSON-em (%q): %v", w.Body.String(), err)
+		}
+		code = resp.Code
+	}
+
+	return w.Code, code, userID, role
 }
 
 func bearer(t *testing.T, tokenType, subject, role string, ttl time.Duration) string {
@@ -48,7 +58,7 @@ func bearer(t *testing.T, tokenType, subject, role string, ttl time.Duration) st
 }
 
 func TestRequireAuthAcceptsAccessToken(t *testing.T) {
-	status, userID, role := guarded(t, bearer(t, auth.TokenTypeAccess, "user-1", models.UserRoleAdmin, time.Hour))
+	status, _, userID, role := guarded(t, bearer(t, auth.TokenTypeAccess, "user-1", models.UserRoleAdmin, time.Hour))
 
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
@@ -62,10 +72,13 @@ func TestRequireAuthAcceptsAccessToken(t *testing.T) {
 }
 
 func TestRequireAuthRejectsMFATokenAsBearer(t *testing.T) {
-	status, userID, _ := guarded(t, bearer(t, auth.TokenTypeMFA, "user-1", models.UserRoleUser, 5*time.Minute))
+	status, code, userID, _ := guarded(t, bearer(t, auth.TokenTypeMFA, "user-1", models.UserRoleUser, 5*time.Minute))
 
 	if status != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401 — an MFA token was accepted as an access token", status)
+	}
+	if code != httpx.CodeSessionExpired {
+		t.Errorf("code = %q, want %q", code, httpx.CodeSessionExpired)
 	}
 	if userID != "" {
 		t.Errorf("userID = %q, want the handler not to have run", userID)
@@ -73,7 +86,7 @@ func TestRequireAuthRejectsMFATokenAsBearer(t *testing.T) {
 }
 
 func TestRequireAuthRejectsStepUpTokenAsBearer(t *testing.T) {
-	status, _, _ := guarded(t, bearer(t, auth.TokenTypeStepUp, "user-1", models.UserRoleUser, 5*time.Minute))
+	status, _, _, _ := guarded(t, bearer(t, auth.TokenTypeStepUp, "user-1", models.UserRoleUser, 5*time.Minute))
 
 	if status != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", status)
@@ -116,9 +129,12 @@ func TestRequireAuthRejects(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status, userID, _ := guarded(t, tt.header(t))
+			status, code, userID, _ := guarded(t, tt.header(t))
 			if status != http.StatusUnauthorized {
 				t.Errorf("status = %d, want 401", status)
+			}
+			if code != httpx.CodeSessionExpired {
+				t.Errorf("code = %q, want %q", code, httpx.CodeSessionExpired)
 			}
 			if userID != "" {
 				t.Errorf("userID = %q, want the handler not to have run", userID)
@@ -128,7 +144,7 @@ func TestRequireAuthRejects(t *testing.T) {
 }
 
 func TestRequireAuthDefaultsMissingRole(t *testing.T) {
-	status, _, role := guarded(t, bearer(t, auth.TokenTypeAccess, "user-1", "", time.Hour))
+	status, _, _, role := guarded(t, bearer(t, auth.TokenTypeAccess, "user-1", "", time.Hour))
 
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
