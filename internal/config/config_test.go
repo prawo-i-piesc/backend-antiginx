@@ -7,16 +7,19 @@ import (
 )
 
 var allKeys = []string{
-	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET",
-	"PUBLIC_BASE_URL", "COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL",
+	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL",
+	"COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL", "TOTP_ENCRYPTION_KEY",
 }
+
+const testTOTPKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 
 func validEnv() map[string]string {
 	return map[string]string{
-		"DATABASE_URL":    "postgres://user:pass@localhost:5432/antiginx",
-		"RABBITMQ_URL":    "amqp://user:pass@localhost:5672/",
-		"JWT_SECRET":      "a-secret-long-enough-to-avoid-the-warning",
-		"PUBLIC_BASE_URL": "https://antiginx.pl",
+		"DATABASE_URL":        "postgres://user:pass@localhost:5432/antiginx",
+		"RABBITMQ_URL":        "amqp://user:pass@localhost:5672/",
+		"JWT_SECRET":          "a-secret-long-enough-to-avoid-the-warning",
+		"PUBLIC_BASE_URL":     "https://antiginx.pl",
+		"TOTP_ENCRYPTION_KEY": testTOTPKey,
 	}
 }
 
@@ -50,6 +53,9 @@ func TestLoadValidEnvironment(t *testing.T) {
 	if string(cfg.JWTSecret) != validEnv()["JWT_SECRET"] {
 		t.Error("JWTSecret was not read from the environment")
 	}
+	if len(cfg.TOTPEncryptionKey) != 32 {
+		t.Errorf("TOTPEncryptionKey ma %d bajtów, oczekiwano 32", len(cfg.TOTPEncryptionKey))
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
@@ -76,7 +82,7 @@ func TestLoadOverrides(t *testing.T) {
 }
 
 func TestLoadRequiresVariables(t *testing.T) {
-	for _, key := range []string{"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL"} {
+	for _, key := range []string{"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL", "TOTP_ENCRYPTION_KEY"} {
 		t.Run("missing "+key, func(t *testing.T) {
 			env := validEnv()
 			delete(env, key)
@@ -100,7 +106,7 @@ func TestLoadReportsAllProblemsAtOnce(t *testing.T) {
 	if err == nil {
 		t.Fatal("Load succeeded with an empty environment")
 	}
-	for _, key := range []string{"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL"} {
+	for _, key := range []string{"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL", "TOTP_ENCRYPTION_KEY"} {
 		if !strings.Contains(err.Error(), key) {
 			t.Errorf("error does not mention %s: %v", key, err)
 		}
@@ -121,6 +127,8 @@ func TestLoadRejectsMalformedValues(t *testing.T) {
 		{"access ttl not a duration", "ACCESS_TOKEN_TTL", "15 minutes"},
 		{"access ttl not positive", "ACCESS_TOKEN_TTL", "-15m"},
 		{"refresh ttl not a duration", "REFRESH_TOKEN_TTL", "forever"},
+		{"totp key not base64", "TOTP_ENCRYPTION_KEY", "nie-base64!!"},
+		{"totp key too short", "TOTP_ENCRYPTION_KEY", "c2hvcnQ="},
 	}
 
 	for _, tt := range tests {

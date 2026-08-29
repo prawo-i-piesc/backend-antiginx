@@ -74,6 +74,50 @@ func TestCORSRejectsForeignOrigins(t *testing.T) {
 	}
 }
 
+func TestMFARoutesRequireAToken(t *testing.T) {
+	r := testRouter(t)
+
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/auth/mfa/totp/enroll"},
+		{http.MethodPost, "/api/auth/mfa/totp/activate"},
+		{http.MethodDelete, "/api/auth/mfa/totp"},
+		{http.MethodPost, "/api/auth/mfa/recovery-codes/regenerate"},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(route.method, route.path, nil))
+
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want 401", w.Code)
+			}
+		})
+	}
+}
+
+func TestMFARoutesRejectForeignOrigin(t *testing.T) {
+	r := testRouter(t)
+
+	for _, path := range []string{
+		"/api/auth/mfa/verify",
+		"/api/auth/mfa/totp/enroll",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("Origin", "https://evil.pl")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want 403", w.Code)
+			}
+		})
+	}
+}
+
 func TestProtectedRoutesRequireAToken(t *testing.T) {
 	r := testRouter(t)
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/models"
 )
 
@@ -25,24 +26,32 @@ var (
 )
 
 type Claims struct {
+	ID      string
 	Subject string
 	Role    string
 	Type    string
 }
 
 func GenerateToken(secret []byte, tokenType, subject, role string, ttl time.Duration) (string, error) {
+	token, _, err := GenerateTokenWithID(secret, tokenType, subject, role, ttl)
+	return token, err
+}
+
+func GenerateTokenWithID(secret []byte, tokenType, subject, role string, ttl time.Duration) (string, string, error) {
 	if len(secret) == 0 {
-		return "", errors.New("auth: signing secret is empty")
+		return "", "", errors.New("auth: signing secret is empty")
 	}
 	if subject == "" {
-		return "", errors.New("auth: token subject is empty")
+		return "", "", errors.New("auth: token subject is empty")
 	}
 	if ttl <= 0 {
-		return "", fmt.Errorf("auth: token ttl must be positive, got %v", ttl)
+		return "", "", fmt.Errorf("auth: token ttl must be positive, got %v", ttl)
 	}
 
+	id := uuid.NewString()
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"jti":  id,
 		"sub":  subject,
 		"role": normalizeRole(role),
 		"typ":  tokenType,
@@ -51,7 +60,11 @@ func GenerateToken(secret []byte, tokenType, subject, role string, ttl time.Dura
 		"iss":  Issuer,
 	})
 
-	return token.SignedString(secret)
+	signed, err := token.SignedString(secret)
+	if err != nil {
+		return "", "", err
+	}
+	return signed, id, nil
 }
 
 func ParseToken(secret []byte, tokenString, expectedType string) (*Claims, error) {
@@ -89,8 +102,10 @@ func ParseToken(secret []byte, tokenString, expectedType string) (*Claims, error
 	}
 
 	role, _ := claims["role"].(string)
+	id, _ := claims["jti"].(string)
 
 	return &Claims{
+		ID:      id,
 		Subject: strings.TrimSpace(subject),
 		Role:    normalizeRole(role),
 		Type:    tokenType,

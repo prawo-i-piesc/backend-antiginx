@@ -70,6 +70,21 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.PATCH("/utils/profile/password", authHandler.HandleUpdatePassword)
 	}
 
+	mfaPublic := r.Group("/api/auth/mfa")
+	mfaPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		mfaPublic.POST("/verify", authHandler.HandleMFAVerify)
+	}
+
+	mfa := r.Group("/api/auth/mfa")
+	mfa.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		mfa.POST("/totp/enroll", authHandler.HandleTOTPEnroll)
+		mfa.POST("/totp/activate", authHandler.HandleTOTPActivate)
+		mfa.DELETE("/totp", authHandler.HandleTOTPDisable)
+		mfa.POST("/recovery-codes/regenerate", authHandler.HandleRegenerateRecoveryCodes)
+	}
+
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{

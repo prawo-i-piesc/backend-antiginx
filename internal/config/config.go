@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/url"
@@ -17,6 +18,8 @@ const (
 
 const minJWTSecretLen = 32
 
+const totpEncryptionKeyLen = 32
+
 type Config struct {
 	DatabaseURL string
 	RabbitMQURL string
@@ -29,6 +32,8 @@ type Config struct {
 
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
+
+	TOTPEncryptionKey []byte
 }
 
 func Load() (*Config, error) {
@@ -60,6 +65,14 @@ func Load() (*Config, error) {
 		problems = append(problems, fmt.Sprintf("PUBLIC_BASE_URL is invalid: %v", err))
 	} else {
 		cfg.PublicBaseURL = origin
+	}
+
+	if raw := strings.TrimSpace(os.Getenv("TOTP_ENCRYPTION_KEY")); raw == "" {
+		problems = append(problems, "TOTP_ENCRYPTION_KEY is required (32 random bytes, base64)")
+	} else if key, err := decodeTOTPKey(raw); err != nil {
+		problems = append(problems, fmt.Sprintf("TOTP_ENCRYPTION_KEY is invalid: %v", err))
+	} else {
+		cfg.TOTPEncryptionKey = key
 	}
 
 	secure, err := envBool("COOKIE_SECURE", true)
@@ -96,6 +109,20 @@ func normalizeOrigin(raw string) (string, error) {
 		return "", fmt.Errorf("must be a bare origin, without path, query or fragment")
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host), nil
+}
+
+func decodeTOTPKey(raw string) ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		key, err = base64.RawStdEncoding.DecodeString(raw)
+		if err != nil {
+			return nil, fmt.Errorf("must be valid base64")
+		}
+	}
+	if len(key) != totpEncryptionKeyLen {
+		return nil, fmt.Errorf("must decode to %d bytes, got %d", totpEncryptionKeyLen, len(key))
+	}
+	return key, nil
 }
 
 func envBool(key string, fallback bool) (bool, error) {

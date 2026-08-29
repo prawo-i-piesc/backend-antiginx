@@ -35,6 +35,7 @@ type UpdatePasswordRequest struct {
 type AuthHandler struct {
 	db  *gorm.DB
 	cfg *config.Config
+	mfa *auth.MFAStore
 }
 
 type RegisterRequest struct {
@@ -52,6 +53,7 @@ func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
 		db:  db,
 		cfg: cfg,
+		mfa: auth.NewMFAStore(),
 	}
 }
 
@@ -189,17 +191,61 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.GenerateToken(existingUser.ID.String(), existingUser.Role)
+	if existingUser.TOTPEnabled() {
+		h.respondWithMFAChallenge(c, &existingUser)
+		return
+	}
+
+	h.respondWithAccessToken(c, &existingUser)
+}
+
+func (h *AuthHandler) respondWithMFAChallenge(c *gin.Context, user *models.User) {
+	token, id, err := auth.GenerateTokenWithID(h.cfg.JWTSecret, auth.TokenTypeMFA, user.ID.String(), user.Role, auth.MFATokenTTL)
 	if err != nil {
-		log.Printf("Login: nie udało się wygenerować tokenu: %v", err)
+		log.Printf("Login: nie udało się wygenerować tokenu MFA: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+
+	h.mfa.Issue(id, user.ID.String())
+
+	methods := []string{MFAMethodTOTP}
+	if h.countUnusedRecoveryCodes(user.ID) > 0 {
+		methods = append(methods, MFAMethodRecoveryCode)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"mfa_required": true,
+		"mfa_token":    token,
+		"methods":      methods,
+		"expires_in":   int(auth.MFATokenTTL.Seconds()),
+	})
+}
+
+func (h *AuthHandler) respondWithAccessToken(c *gin.Context, user *models.User) {
+	token, err := h.GenerateToken(user.ID.String(), user.Role)
+	if err != nil {
+		log.Printf("Nie udało się wygenerować tokenu dostępu: %v", err)
 		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token":      token,
-		"expires_in": int(h.cfg.AccessTokenTTL.Seconds()),
+		"token":        token,
+		"access_token": token,
+		"token_type":   "Bearer",
+		"expires_in":   int(h.cfg.AccessTokenTTL.Seconds()),
+		"user":         publicUser(user),
 	})
+}
+
+func publicUser(user *models.User) gin.H {
+	return gin.H{
+		"id":        user.ID,
+		"email":     user.Email,
+		"full_name": user.FullName,
+		"role":      user.Role,
+	}
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
@@ -209,10 +255,21 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":        user.ID,
-		"full_name": user.FullName,
-		"email":     user.Email,
-		"role":      user.Role,
+		"id":         user.ID,
+		"full_name":  user.FullName,
+		"email":      user.Email,
+		"role":       user.Role,
+		"created_at": user.CreatedAt,
+		"auth": gin.H{
+			"password_set":   user.HasPassword(),
+			"email_verified": user.EmailVerified,
+			"providers":      []string{},
+			"mfa": gin.H{
+				"totp_enabled":             user.TOTPEnabled(),
+				"webauthn_enabled":         false,
+				"recovery_codes_remaining": h.countUnusedRecoveryCodes(user.ID),
+			},
+		},
 	})
 }
 
