@@ -9,6 +9,7 @@ import (
 var allKeys = []string{
 	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL",
 	"COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL", "TOTP_ENCRYPTION_KEY",
+	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
 }
 
 const testTOTPKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -169,6 +170,58 @@ func TestLoadNormalizesPublicBaseURL(t *testing.T) {
 				t.Errorf("PublicBaseURL = %q, want %q", cfg.PublicBaseURL, tt.want)
 			}
 		})
+	}
+}
+
+func TestGoogleCredentialsMustBeSetTogether(t *testing.T) {
+	tests := []struct {
+		name      string
+		id        string
+		secret    string
+		wantError bool
+		enabled   bool
+	}{
+		{"oba puste", "", "", false, false},
+		{"oba ustawione", "klient-id", "sekret", false, true},
+		{"samo id", "klient-id", "", true, false},
+		{"sam sekret", "", "sekret", true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := validEnv()
+			env["GOOGLE_CLIENT_ID"] = tt.id
+			env["GOOGLE_CLIENT_SECRET"] = tt.secret
+			setEnv(t, env)
+
+			cfg, err := Load()
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("Load przyjął połowiczną konfigurację Google")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.GoogleEnabled() != tt.enabled {
+				t.Errorf("GoogleEnabled = %v, want %v", cfg.GoogleEnabled(), tt.enabled)
+			}
+		})
+	}
+}
+
+func TestOAuthRedirectURI(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	want := "https://antiginx.pl/api/auth/oauth/google/callback"
+	if got := cfg.OAuthRedirectURI("google"); got != want {
+		t.Errorf("OAuthRedirectURI = %q, want %q", got, want)
 	}
 }
 

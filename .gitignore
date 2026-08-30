@@ -165,3 +165,5 @@ $RECYCLE.BIN/
 .config/gh/
 *.p12
 *.pfx
+# Dokumentacja robocza warstwy auth
+AUTH.md

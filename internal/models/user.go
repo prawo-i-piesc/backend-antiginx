@@ -19,9 +19,10 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	Password  []byte    `json:"-"`
 
-	EmailVerified bool       `gorm:"not null;default:false" json:"email_verified"`
-	TOTPSecret    []byte     `json:"-"`
-	TOTPEnabledAt *time.Time `json:"-"`
+	EmailVerified  bool       `gorm:"not null;default:false" json:"email_verified"`
+	EmailChangedAt *time.Time `json:"-"`
+	TOTPSecret     []byte     `json:"-"`
+	TOTPEnabledAt  *time.Time `json:"-"`
 }
 
 func (u *User) HasPassword() bool {

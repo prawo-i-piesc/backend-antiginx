@@ -158,6 +158,76 @@ func TestLogoutRequiresAToken(t *testing.T) {
 	}
 }
 
+func TestOAuthStartWithoutConfiguredProvider(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/auth/oauth/google/start", nil))
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	location := w.Header().Get("Location")
+	if !strings.HasPrefix(location, frontendOrigin+"/login") {
+		t.Errorf("Location = %q, powinno wracać na ekran logowania frontu", location)
+	}
+	if !strings.Contains(location, "OAUTH_PROVIDER_ERROR") {
+		t.Errorf("Location = %q, brak kodu błędu", location)
+	}
+}
+
+func TestOAuthCallbackWithoutStateRedirects(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/auth/oauth/google/callback?code=x&state=y", nil))
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	if location := w.Header().Get("Location"); !strings.Contains(location, "OAUTH_STATE_INVALID") {
+		t.Errorf("Location = %q, want kod OAUTH_STATE_INVALID", location)
+	}
+}
+
+func TestOAuthCallbackNeverReturnsJSON(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/auth/oauth/google/callback", nil))
+
+	if w.Body.Len() != 0 && strings.Contains(w.Header().Get("Content-Type"), "json") {
+		t.Errorf("callback zwrócił JSON, a ma zawsze przekierowywać: %s", w.Body.String())
+	}
+}
+
+func TestOAuthManagementRoutesRequireAToken(t *testing.T) {
+	r := testRouter(t)
+
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/auth/oauth/google/link"},
+		{http.MethodDelete, "/api/auth/oauth/google"},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(route.method, route.path, nil))
+
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want 401", w.Code)
+			}
+		})
+	}
+}
+
+func TestOAuthManagementRoutesRejectForeignOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/oauth/google/link", nil)
+	req.Header.Set("Origin", "https://evil.pl")
+
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", w.Code)
+	}
+}
+
 func TestProtectedRoutesRequireAToken(t *testing.T) {
 	r := testRouter(t)
 

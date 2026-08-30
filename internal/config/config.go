@@ -34,6 +34,17 @@ type Config struct {
 	RefreshTokenTTL time.Duration
 
 	TOTPEncryptionKey []byte
+
+	GoogleClientID     string
+	GoogleClientSecret string
+}
+
+func (c *Config) GoogleEnabled() bool {
+	return c.GoogleClientID != "" && c.GoogleClientSecret != ""
+}
+
+func (c *Config) OAuthRedirectURI(provider string) string {
+	return c.PublicBaseURL + "/api/auth/oauth/" + provider + "/callback"
 }
 
 func Load() (*Config, error) {
@@ -73,6 +84,12 @@ func Load() (*Config, error) {
 		problems = append(problems, fmt.Sprintf("TOTP_ENCRYPTION_KEY is invalid: %v", err))
 	} else {
 		cfg.TOTPEncryptionKey = key
+	}
+
+	cfg.GoogleClientID = strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
+	cfg.GoogleClientSecret = strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET"))
+	if (cfg.GoogleClientID == "") != (cfg.GoogleClientSecret == "") {
+		problems = append(problems, "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together")
 	}
 
 	secure, err := envBool("COOKIE_SECURE", true)

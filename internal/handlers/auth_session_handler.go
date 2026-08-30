@@ -24,9 +24,18 @@ func (h *AuthHandler) sessionContext(c *gin.Context, amr string) auth.SessionCon
 	}
 }
 
-func (h *AuthHandler) issueSession(c *gin.Context, user *models.User, amr string, status int) {
+func (h *AuthHandler) startSession(c *gin.Context, user *models.User, amr string) error {
 	token, _, err := h.sessions.Issue(user.ID, h.sessionContext(c, amr))
 	if err != nil {
+		return err
+	}
+
+	auth.SetSessionCookie(c, token, h.cfg.RefreshTokenTTL, h.cfg.CookieSecure)
+	return nil
+}
+
+func (h *AuthHandler) issueSession(c *gin.Context, user *models.User, amr string, status int) {
+	if err := h.startSession(c, user, amr); err != nil {
 		log.Printf("Nie udało się utworzyć sesji dla %s: %v", user.ID, err)
 		httpx.Fail(c, httpx.CodeInternal)
 		return
@@ -39,7 +48,6 @@ func (h *AuthHandler) issueSession(c *gin.Context, user *models.User, amr string
 		return
 	}
 
-	auth.SetSessionCookie(c, token, h.cfg.RefreshTokenTTL, h.cfg.CookieSecure)
 	c.JSON(status, h.accessTokenBody(accessToken, user))
 }
 

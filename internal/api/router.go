@@ -97,6 +97,19 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		mfa.POST("/recovery-codes/regenerate", authHandler.HandleRegenerateRecoveryCodes)
 	}
 
+	oauthPublic := r.Group("/api/auth/oauth")
+	{
+		oauthPublic.GET("/:provider/start", authHandler.HandleOAuthStart)
+		oauthPublic.GET("/:provider/callback", authHandler.HandleOAuthCallback)
+	}
+
+	oauthProtected := r.Group("/api/auth/oauth")
+	oauthProtected.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		oauthProtected.POST("/:provider/link", authHandler.HandleOAuthLink)
+		oauthProtected.DELETE("/:provider", authHandler.HandleOAuthUnlink)
+	}
+
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{

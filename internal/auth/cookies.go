@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prawo-i-piesc/backend/internal/auth/oauth"
 )
 
 const SessionCookieName = "ag_session"
@@ -25,4 +26,17 @@ func SessionCookie(c *gin.Context) string {
 		return ""
 	}
 	return token
+}
+
+func SetOAuthStateCookie(c *gin.Context, id string, secure bool) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(oauth.StateCookieName, id, int(oauth.StateTTL.Seconds()), "/", "", secure, true)
+}
+
+func OAuthStateCookie(c *gin.Context) string {
+	id, err := c.Cookie(oauth.StateCookieName)
+	if err != nil {
+		return ""
+	}
+	return id
 }

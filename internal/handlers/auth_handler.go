@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/auth/oauth"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
@@ -33,10 +34,12 @@ type UpdatePasswordRequest struct {
 }
 
 type AuthHandler struct {
-	db       *gorm.DB
-	cfg      *config.Config
-	mfa      *auth.MFAStore
-	sessions *auth.SessionService
+	db         *gorm.DB
+	cfg        *config.Config
+	mfa        *auth.MFAStore
+	sessions   *auth.SessionService
+	oauth      *oauth.Registry
+	oauthState *oauth.StateStore
 }
 
 type RegisterRequest struct {
@@ -51,11 +54,22 @@ type LoginRequest struct {
 }
 
 func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
+	var providers []oauth.Provider
+	if cfg.GoogleEnabled() {
+		providers = append(providers, oauth.NewGoogle(
+			cfg.GoogleClientID,
+			cfg.GoogleClientSecret,
+			cfg.OAuthRedirectURI(models.ProviderGoogle),
+		))
+	}
+
 	return &AuthHandler{
-		db:       db,
-		cfg:      cfg,
-		mfa:      auth.NewMFAStore(),
-		sessions: auth.NewSessionService(db, cfg.RefreshTokenTTL),
+		db:         db,
+		cfg:        cfg,
+		mfa:        auth.NewMFAStore(),
+		sessions:   auth.NewSessionService(db, cfg.RefreshTokenTTL),
+		oauth:      oauth.NewRegistry(providers...),
+		oauthState: oauth.NewStateStore(),
 	}
 }
 
@@ -252,7 +266,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"auth": gin.H{
 			"password_set":   user.HasPassword(),
 			"email_verified": user.EmailVerified,
-			"providers":      []string{},
+			"providers":      h.userProviders(user.ID),
 			"mfa": gin.H{
 				"totp_enabled":             user.TOTPEnabled(),
 				"webauthn_enabled":         false,
@@ -311,7 +325,12 @@ func (h *AuthHandler) HandleUpdateEmail(c *gin.Context) {
 		return
 	}
 
-	user.Email = email
+	if email != user.Email {
+		now := time.Now()
+		user.Email = email
+		user.EmailVerified = false
+		user.EmailChangedAt = &now
+	}
 
 	if err := h.db.Save(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
