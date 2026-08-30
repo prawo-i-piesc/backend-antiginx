@@ -276,7 +276,7 @@ func (h *AuthHandler) HandleMFAVerify(c *gin.Context) {
 	}
 
 	h.mfa.Consume(claims.ID)
-	h.respondWithAccessToken(c, &user)
+	h.issueSession(c, &user, models.AMRPasswordOTP, http.StatusOK)
 }
 
 func (h *AuthHandler) verifyTOTP(user *models.User, code string) bool {

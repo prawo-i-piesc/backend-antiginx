@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -115,6 +116,45 @@ func TestMFARoutesRejectForeignOrigin(t *testing.T) {
 				t.Errorf("status = %d, want 403", w.Code)
 			}
 		})
+	}
+}
+
+func TestRefreshWithoutCookieReportsExpiredSession(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil))
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "SESSION_EXPIRED") {
+		t.Errorf("body = %s, want kod SESSION_EXPIRED", w.Body.String())
+	}
+}
+
+func TestSessionRoutesRejectForeignOrigin(t *testing.T) {
+	r := testRouter(t)
+
+	for _, path := range []string{"/api/auth/refresh", "/api/auth/logout"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("Origin", "https://evil.pl")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want 403", w.Code)
+			}
+		})
+	}
+}
+
+func TestLogoutRequiresAToken(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil))
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", w.Code)
 	}
 }
 

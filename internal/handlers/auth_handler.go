@@ -29,19 +29,20 @@ type UpdateEmailRequest struct {
 
 type UpdatePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required,min=8"`
+	NewPassword string `json:"new_password" binding:"required"`
 }
 
 type AuthHandler struct {
-	db  *gorm.DB
-	cfg *config.Config
-	mfa *auth.MFAStore
+	db       *gorm.DB
+	cfg      *config.Config
+	mfa      *auth.MFAStore
+	sessions *auth.SessionService
 }
 
 type RegisterRequest struct {
 	FullName string `json:"full_name" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
+	Password string `json:"password" binding:"required"`
 }
 
 type LoginRequest struct {
@@ -51,9 +52,10 @@ type LoginRequest struct {
 
 func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
-		db:  db,
-		cfg: cfg,
-		mfa: auth.NewMFAStore(),
+		db:       db,
+		cfg:      cfg,
+		mfa:      auth.NewMFAStore(),
+		sessions: auth.NewSessionService(db, cfg.RefreshTokenTTL),
 	}
 }
 
@@ -112,6 +114,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	if err := auth.ValidatePassword(req.Password); err != nil {
+		httpx.Fail(c, httpx.CodePasswordTooWeak)
+		return
+	}
+
 	email := auth.NormalizeEmail(req.Email)
 
 	resultEmailCheck := byEmail(h.db, email).First(&existingUser)
@@ -161,9 +168,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "User registered successfully",
-	})
+	h.issueSession(c, &newUser, models.AMRPassword, http.StatusCreated)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -178,6 +183,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			auth.CompareDummyPassword(req.Password)
 			httpx.Fail(c, httpx.CodeInvalidCredentials)
 			return
 		}
@@ -196,7 +202,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	h.respondWithAccessToken(c, &existingUser)
+	h.issueSession(c, &existingUser, models.AMRPassword, http.StatusOK)
 }
 
 func (h *AuthHandler) respondWithMFAChallenge(c *gin.Context, user *models.User) {
@@ -219,23 +225,6 @@ func (h *AuthHandler) respondWithMFAChallenge(c *gin.Context, user *models.User)
 		"mfa_token":    token,
 		"methods":      methods,
 		"expires_in":   int(auth.MFATokenTTL.Seconds()),
-	})
-}
-
-func (h *AuthHandler) respondWithAccessToken(c *gin.Context, user *models.User) {
-	token, err := h.GenerateToken(user.ID.String(), user.Role)
-	if err != nil {
-		log.Printf("Nie udało się wygenerować tokenu dostępu: %v", err)
-		httpx.Fail(c, httpx.CodeInternal)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"token":        token,
-		"access_token": token,
-		"token_type":   "Bearer",
-		"expires_in":   int(h.cfg.AccessTokenTTL.Seconds()),
-		"user":         publicUser(user),
 	})
 }
 
@@ -351,6 +340,11 @@ func (h *AuthHandler) HandleUpdatePassword(c *gin.Context) {
 
 	if err := bcrypt.CompareHashAndPassword(user.Password, []byte(req.OldPassword)); err != nil {
 		httpx.Fail(c, httpx.CodeInvalidCredentials)
+		return
+	}
+
+	if err := auth.ValidatePassword(req.NewPassword); err != nil {
+		httpx.Fail(c, httpx.CodePasswordTooWeak)
 		return
 	}
 

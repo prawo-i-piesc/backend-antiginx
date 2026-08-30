@@ -55,6 +55,18 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		public.POST("/auth/login", authHandler.Login)
 	}
 
+	session := r.Group("/api/auth")
+	session.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		session.POST("/refresh", authHandler.HandleRefresh)
+	}
+
+	sessionProtected := r.Group("/api/auth")
+	sessionProtected.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		sessionProtected.POST("/logout", authHandler.HandleLogout)
+	}
+
 	protected := r.Group("/api")
 	protected.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
