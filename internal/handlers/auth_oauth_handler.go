@@ -168,7 +168,15 @@ func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, 
 	err = byEmail(h.db, email).First(&existing).Error
 	switch {
 	case err == nil:
-		return &existing, true, ""
+		// Potwierdzenia wymaga tylko konto, którego adresu nikt nie sprawdził —
+		// czyli założone hasłem, bo rejestracja nie weryfikuje maila i ktoś mógł
+		// zająć cudzy adres, czekając na jego pierwsze logowanie providerem.
+		//
+		// Konto założone przez providera ma adres potwierdzony przez niego, a
+		// drugi provider potwierdza ten sam adres, więc to ten sam człowiek.
+		// Żądanie hasła zamykałoby je w ślepym zaułku: hasła nie ma i nie da
+		// się go tam podać.
+		return &existing, !existing.EmailVerified, ""
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		log.Printf("resolveOAuthUser: błąd bazy danych: %v", err)
 		return nil, false, httpx.CodeInternal
