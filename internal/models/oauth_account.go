@@ -6,7 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const ProviderGoogle = "google"
+const (
+	ProviderGoogle = "google"
+	ProviderGitHub = "github"
+)
 
 type OAuthAccount struct {
 	ID             uuid.UUID `gorm:"type:uuid;primary_key;"`

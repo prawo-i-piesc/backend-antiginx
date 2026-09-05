@@ -10,6 +10,7 @@ var allKeys = []string{
 	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL",
 	"COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL", "TOTP_ENCRYPTION_KEY",
 	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
 	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
 }
 
@@ -273,6 +274,62 @@ func TestWebAuthnRPNameDefault(t *testing.T) {
 	}
 }
 
+func TestGitHubCredentialsMustBeSetTogether(t *testing.T) {
+	tests := []struct {
+		name      string
+		id        string
+		secret    string
+		wantError bool
+		enabled   bool
+	}{
+		{"oba puste", "", "", false, false},
+		{"oba ustawione", "klient-id", "sekret", false, true},
+		{"samo id", "klient-id", "", true, false},
+		{"sam sekret", "", "sekret", true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := validEnv()
+			env["GITHUB_CLIENT_ID"] = tt.id
+			env["GITHUB_CLIENT_SECRET"] = tt.secret
+			setEnv(t, env)
+
+			cfg, err := Load()
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("Load przyjął połowiczną konfigurację GitHuba")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.GitHubEnabled() != tt.enabled {
+				t.Errorf("GitHubEnabled = %v, want %v", cfg.GitHubEnabled(), tt.enabled)
+			}
+		})
+	}
+}
+
+func TestProvidersAreIndependent(t *testing.T) {
+	env := validEnv()
+	env["GOOGLE_CLIENT_ID"] = "klient-id"
+	env["GOOGLE_CLIENT_SECRET"] = "sekret"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.GoogleEnabled() {
+		t.Error("Google powinien być włączony")
+	}
+	if cfg.GitHubEnabled() {
+		t.Error("GitHub włączył się bez własnych kluczy")
+	}
+}
+
 func TestOAuthRedirectURI(t *testing.T) {
 	setEnv(t, validEnv())
 
@@ -281,9 +338,13 @@ func TestOAuthRedirectURI(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	want := "https://antiginx.pl/api/auth/oauth/google/callback"
-	if got := cfg.OAuthRedirectURI("google"); got != want {
-		t.Errorf("OAuthRedirectURI = %q, want %q", got, want)
+	for provider, want := range map[string]string{
+		"google": "https://antiginx.pl/api/auth/oauth/google/callback",
+		"github": "https://antiginx.pl/api/auth/oauth/github/callback",
+	} {
+		if got := cfg.OAuthRedirectURI(provider); got != want {
+			t.Errorf("OAuthRedirectURI(%q) = %q, want %q", provider, got, want)
+		}
 	}
 }
 

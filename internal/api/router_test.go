@@ -189,6 +189,24 @@ func TestOAuthStartWithoutConfiguredProvider(t *testing.T) {
 	}
 }
 
+func TestOAuthRoutesServeBothProviders(t *testing.T) {
+	r := testRouter(t)
+
+	for _, provider := range []string{"google", "github"} {
+		t.Run(provider, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/auth/oauth/"+provider+"/start", nil))
+
+			if w.Code != http.StatusFound {
+				t.Fatalf("status = %d, want 302", w.Code)
+			}
+			if location := w.Header().Get("Location"); !strings.HasPrefix(location, frontendOrigin) {
+				t.Errorf("Location = %q", location)
+			}
+		})
+	}
+}
+
 func TestOAuthCallbackWithoutStateRedirects(t *testing.T) {
 	w := httptest.NewRecorder()
 	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/auth/oauth/google/callback?code=x&state=y", nil))

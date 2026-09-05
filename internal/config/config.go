@@ -40,12 +40,19 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 
+	GitHubClientID     string
+	GitHubClientSecret string
+
 	WebAuthnRPID   string
 	WebAuthnRPName string
 }
 
 func (c *Config) GoogleEnabled() bool {
 	return c.GoogleClientID != "" && c.GoogleClientSecret != ""
+}
+
+func (c *Config) GitHubEnabled() bool {
+	return c.GitHubClientID != "" && c.GitHubClientSecret != ""
 }
 
 func (c *Config) OAuthRedirectURI(provider string) string {
@@ -95,6 +102,12 @@ func Load() (*Config, error) {
 	cfg.GoogleClientSecret = strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET"))
 	if (cfg.GoogleClientID == "") != (cfg.GoogleClientSecret == "") {
 		problems = append(problems, "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together")
+	}
+
+	cfg.GitHubClientID = strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID"))
+	cfg.GitHubClientSecret = strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET"))
+	if (cfg.GitHubClientID == "") != (cfg.GitHubClientSecret == "") {
+		problems = append(problems, "GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be set together")
 	}
 
 	cfg.WebAuthnRPName = envOrDefault("WEBAUTHN_RP_NAME", DefaultWebAuthnRPName)

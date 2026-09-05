@@ -69,6 +69,13 @@ func NewAuthHandler(db *gorm.DB, cfg *config.Config) (*AuthHandler, error) {
 			cfg.OAuthRedirectURI(models.ProviderGoogle),
 		))
 	}
+	if cfg.GitHubEnabled() {
+		providers = append(providers, oauth.NewGitHub(
+			cfg.GitHubClientID,
+			cfg.GitHubClientSecret,
+			cfg.OAuthRedirectURI(models.ProviderGitHub),
+		))
+	}
 
 	passkeys, err := passkey.New(cfg.WebAuthnRPID, cfg.WebAuthnRPName, cfg.PublicBaseURL)
 	if err != nil {
