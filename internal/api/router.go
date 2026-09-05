@@ -65,6 +65,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	sessionProtected.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
 	{
 		sessionProtected.POST("/logout", authHandler.HandleLogout)
+		sessionProtected.DELETE("/account", authHandler.HandleDeleteAccount)
 	}
 
 	protected := r.Group("/api")

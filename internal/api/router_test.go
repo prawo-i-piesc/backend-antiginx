@@ -134,9 +134,16 @@ func TestRefreshWithoutCookieReportsExpiredSession(t *testing.T) {
 func TestSessionRoutesRejectForeignOrigin(t *testing.T) {
 	r := testRouter(t)
 
-	for _, path := range []string{"/api/auth/refresh", "/api/auth/logout"} {
-		t.Run(path, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, path, nil)
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/auth/refresh"},
+		{http.MethodPost, "/api/auth/logout"},
+		{http.MethodDelete, "/api/auth/account"},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			req := httptest.NewRequest(route.method, route.path, nil)
 			req.Header.Set("Origin", "https://attacker.invalid")
 
 			w := httptest.NewRecorder()
@@ -283,6 +290,7 @@ func TestProtectedRoutesRequireAToken(t *testing.T) {
 		path   string
 	}{
 		{http.MethodGet, "/api/auth/me"},
+		{http.MethodDelete, "/api/auth/account"},
 		{http.MethodGet, "/api/users/scans"},
 		{http.MethodGet, "/api/admin/widgets"},
 		{http.MethodPatch, "/api/utils/profile/email"},
