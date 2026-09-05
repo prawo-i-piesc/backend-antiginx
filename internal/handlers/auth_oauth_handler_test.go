@@ -35,7 +35,7 @@ func TestResolveOAuthUserAsksForPasswordOnUnverifiedAccount(t *testing.T) {
 	seedUserForOAuth(t, db, "jan@example.com", []byte("hasz"), false)
 
 	profile := &oauth.Profile{Subject: "gh-1", Email: "jan@example.com", EmailVerified: true}
-	user, needsConfirmation, failure := h.resolveOAuthUser(models.ProviderGitHub, profile, "jan@example.com")
+	user, needsConfirmation, _, failure := h.resolveOAuthUser(models.ProviderGitHub, profile, "jan@example.com")
 
 	if failure != "" {
 		t.Fatalf("resolveOAuthUser: nieoczekiwany błąd %q", failure)
@@ -54,7 +54,7 @@ func TestResolveOAuthUserLinksVerifiedAccountWithoutPassword(t *testing.T) {
 	seedUserForOAuth(t, db, "jan@example.com", nil, true)
 
 	profile := &oauth.Profile{Subject: "gh-1", Email: "jan@example.com", EmailVerified: true}
-	user, needsConfirmation, failure := h.resolveOAuthUser(models.ProviderGitHub, profile, "jan@example.com")
+	user, needsConfirmation, _, failure := h.resolveOAuthUser(models.ProviderGitHub, profile, "jan@example.com")
 
 	if failure != "" {
 		t.Fatalf("resolveOAuthUser: nieoczekiwany błąd %q", failure)
@@ -77,7 +77,7 @@ func TestResolveOAuthUserCreatesAccountWhenEmailIsFree(t *testing.T) {
 		EmailVerified: true,
 		FullName:      "Nowy User",
 	}
-	user, needsConfirmation, failure := h.resolveOAuthUser(models.ProviderGitHub, profile, "nowy@example.com")
+	user, needsConfirmation, _, failure := h.resolveOAuthUser(models.ProviderGitHub, profile, "nowy@example.com")
 
 	if failure != "" {
 		t.Fatalf("resolveOAuthUser: nieoczekiwany błąd %q", failure)
@@ -87,5 +87,18 @@ func TestResolveOAuthUserCreatesAccountWhenEmailIsFree(t *testing.T) {
 	}
 	if user == nil || user.Email != "nowy@example.com" {
 		t.Fatalf("resolveOAuthUser zwrócił %+v", user)
+	}
+}
+
+func TestAfterOAuthPathSendsFreshAccountToWelcome(t *testing.T) {
+	h := &AuthHandler{}
+
+	if got := h.afterOAuthPath("/dashboard", false); got != "/dashboard" {
+		t.Fatalf("istniejące konto: afterOAuthPath = %q, want /dashboard", got)
+	}
+
+	want := "/welcome?next=%2Fdashboard"
+	if got := h.afterOAuthPath("/dashboard", true); got != want {
+		t.Fatalf("nowe konto: afterOAuthPath = %q, want %q", got, want)
 	}
 }

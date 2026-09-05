@@ -24,6 +24,7 @@ const (
 	loginPath            = "/login"
 	mfaPath              = "/login/mfa"
 	linkPath             = "/login/link"
+	welcomePath          = "/welcome"
 )
 
 type OAuthLinkConfirmRequest struct {
@@ -123,7 +124,7 @@ func (h *AuthHandler) HandleOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	user, needsConfirmation, failure := h.resolveOAuthUser(flow.Provider, profile, email)
+	user, needsConfirmation, created, failure := h.resolveOAuthUser(flow.Provider, profile, email)
 	if failure != "" {
 		h.oauthRedirectError(c, failurePath, failure)
 		return
@@ -145,10 +146,22 @@ func (h *AuthHandler) HandleOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, h.cfg.PublicBaseURL+flow.Next)
+	c.Redirect(http.StatusFound, h.cfg.PublicBaseURL+h.afterOAuthPath(flow.Next, created))
 }
 
-func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, email string) (*models.User, bool, httpx.Code) {
+// afterOAuthPath kieruje świeżo założone konto na powitanie, gdzie użytkownik
+// potwierdza nazwę zaciągniętą od dostawcy, zamiast odkrywać ją potem w
+// ustawieniach.
+func (h *AuthHandler) afterOAuthPath(next string, created bool) string {
+	if !created {
+		return next
+	}
+	return welcomePath + "?next=" + url.QueryEscape(next)
+}
+
+// Zwraca też informację, czy konto powstało dopiero teraz — świeże ma nazwę
+// wziętą od dostawcy i warto dać ją poprawić, zanim trafi do interfejsu.
+func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, email string) (*models.User, bool, bool, httpx.Code) {
 	var account models.OAuthAccount
 	err := h.db.Where("provider = ? AND provider_user_id = ?", provider, profile.Subject).First(&account).Error
 	switch {
@@ -156,12 +169,12 @@ func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, 
 		var user models.User
 		if err := h.db.Where("id = ?", account.UserID).First(&user).Error; err != nil {
 			log.Printf("resolveOAuthUser: powiązane konto wskazuje na nieistniejącego użytkownika: %v", err)
-			return nil, false, httpx.CodeInternal
+			return nil, false, false, httpx.CodeInternal
 		}
-		return &user, false, ""
+		return &user, false, false, ""
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		log.Printf("resolveOAuthUser: błąd bazy danych: %v", err)
-		return nil, false, httpx.CodeInternal
+		return nil, false, false, httpx.CodeInternal
 	}
 
 	var existing models.User
@@ -176,18 +189,18 @@ func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, 
 		// drugi provider potwierdza ten sam adres, więc to ten sam człowiek.
 		// Żądanie hasła zamykałoby je w ślepym zaułku: hasła nie ma i nie da
 		// się go tam podać.
-		return &existing, !existing.EmailVerified, ""
+		return &existing, !existing.EmailVerified, false, ""
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		log.Printf("resolveOAuthUser: błąd bazy danych: %v", err)
-		return nil, false, httpx.CodeInternal
+		return nil, false, false, httpx.CodeInternal
 	}
 
 	user, err := h.createOAuthUser(provider, profile, email)
 	if err != nil {
 		log.Printf("resolveOAuthUser: nie udało się utworzyć konta: %v", err)
-		return nil, false, httpx.CodeInternal
+		return nil, false, false, httpx.CodeInternal
 	}
-	return user, false, ""
+	return user, false, true, ""
 }
 
 func (h *AuthHandler) beginPendingLink(c *gin.Context, flow *oauth.Flow, profile *oauth.Profile, email string, user *models.User) {
