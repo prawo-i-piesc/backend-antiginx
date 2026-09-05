@@ -90,6 +90,9 @@ func (h *AuthHandler) deleteAccount(userID uuid.UUID) error {
 		if err := tx.Where("user_id = ?", userID).Delete(&models.OAuthAccount{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("user_id = ?", userID).Delete(&models.WebAuthnCredential{}).Error; err != nil {
+			return err
+		}
 
 		return tx.Where("id = ?", userID).Delete(&models.User{}).Error
 	})

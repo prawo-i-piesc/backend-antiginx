@@ -25,7 +25,8 @@ func testDB(t *testing.T) *gorm.DB {
 
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Session{}, &models.RecoveryCode{},
-		&models.OAuthAccount{}, &models.PremiumScan{}, &models.ScanResult{},
+		&models.OAuthAccount{}, &models.WebAuthnCredential{},
+		&models.PremiumScan{}, &models.ScanResult{},
 	); err != nil {
 		t.Fatalf("migracja bazy testowej: %v", err)
 	}
@@ -58,6 +59,10 @@ func seedAccount(t *testing.T, db *gorm.DB, email string) uuid.UUID {
 		&models.OAuthAccount{
 			ID: newID(t), UserID: userID,
 			Provider: models.ProviderGoogle, ProviderUserID: email + "-sub",
+		},
+		&models.WebAuthnCredential{
+			ID: newID(t), UserID: userID,
+			CredentialID: []byte(email + "-credential"), PublicKey: []byte("key"), Name: "Passkey",
 		},
 		&models.PremiumScan{ID: scanID, UserID: userID, TargetURL: "https://example.com"},
 		&models.ScanResult{ScanID: scanID, TestName: "test", Severity: "low"},

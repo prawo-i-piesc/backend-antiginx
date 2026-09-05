@@ -10,6 +10,7 @@ var allKeys = []string{
 	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL",
 	"COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL", "TOTP_ENCRYPTION_KEY",
 	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
 }
 
 const testTOTPKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -208,6 +209,67 @@ func TestGoogleCredentialsMustBeSetTogether(t *testing.T) {
 				t.Errorf("GoogleEnabled = %v, want %v", cfg.GoogleEnabled(), tt.enabled)
 			}
 		})
+	}
+}
+
+// RPID jest wpisywany w passkey na stałe, więc musi wynikać z originu frontu
+// i nie może zawierać portu.
+func TestWebAuthnRPIDDerivedFromPublicBaseURL(t *testing.T) {
+	tests := []struct {
+		origin string
+		want   string
+	}{
+		{"https://antiginx.pl", "antiginx.pl"},
+		{"https://antiginx.pl/", "antiginx.pl"},
+		{"http://localhost:3000", "localhost"},
+		{"https://app.antiginx.pl:8443", "app.antiginx.pl"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.origin, func(t *testing.T) {
+			env := validEnv()
+			env["PUBLIC_BASE_URL"] = tt.origin
+			setEnv(t, env)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.WebAuthnRPID != tt.want {
+				t.Errorf("WebAuthnRPID = %q, want %q", cfg.WebAuthnRPID, tt.want)
+			}
+		})
+	}
+}
+
+func TestWebAuthnOverrides(t *testing.T) {
+	env := validEnv()
+	env["WEBAUTHN_RPID"] = "antiginx.pl"
+	env["WEBAUTHN_RP_NAME"] = "AntiGinx Test"
+	env["PUBLIC_BASE_URL"] = "http://localhost:3000"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.WebAuthnRPID != "antiginx.pl" {
+		t.Errorf("WebAuthnRPID = %q, jawna wartość powinna wygrać z wyliczoną", cfg.WebAuthnRPID)
+	}
+	if cfg.WebAuthnRPName != "AntiGinx Test" {
+		t.Errorf("WebAuthnRPName = %q", cfg.WebAuthnRPName)
+	}
+}
+
+func TestWebAuthnRPNameDefault(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.WebAuthnRPName != DefaultWebAuthnRPName {
+		t.Errorf("WebAuthnRPName = %q, want %q", cfg.WebAuthnRPName, DefaultWebAuthnRPName)
 	}
 }
 

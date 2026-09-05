@@ -67,7 +67,7 @@ func main() {
 	}
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
-	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 
@@ -153,7 +153,10 @@ func main() {
 	log.Println("RabbitMQ queues successfully configured")
 
 	scanHandler := handlers.NewScanHandler(ch, db)
-	authHandler := handlers.NewAuthHandler(db, cfg)
+	authHandler, err := handlers.NewAuthHandler(db, cfg)
+	if err != nil {
+		log.Fatalf("Nie udało się zainicjalizować obsługi uwierzytelniania: %v", err)
+	}
 	adminHandler := handlers.NewAdminHandler(db)
 
 	router := api.NewRouter(scanHandler, authHandler, adminHandler, cfg)

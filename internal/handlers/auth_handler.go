@@ -2,15 +2,18 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/auth/oauth"
+	"github.com/prawo-i-piesc/backend/internal/auth/passkey"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
@@ -41,6 +44,9 @@ type AuthHandler struct {
 	oauth        *oauth.Registry
 	oauthState   *oauth.StateStore
 	oauthPending *oauth.PendingStore
+
+	passkeys          *webauthn.WebAuthn
+	passkeyCeremonies *passkey.CeremonyStore
 }
 
 type RegisterRequest struct {
@@ -54,7 +60,7 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
+func NewAuthHandler(db *gorm.DB, cfg *config.Config) (*AuthHandler, error) {
 	var providers []oauth.Provider
 	if cfg.GoogleEnabled() {
 		providers = append(providers, oauth.NewGoogle(
@@ -64,15 +70,22 @@ func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
 		))
 	}
 
-	return &AuthHandler{
-		db:           db,
-		cfg:          cfg,
-		mfa:          auth.NewMFAStore(),
-		sessions:     auth.NewSessionService(db, cfg.RefreshTokenTTL),
-		oauth:        oauth.NewRegistry(providers...),
-		oauthState:   oauth.NewStateStore(),
-		oauthPending: oauth.NewPendingStore(),
+	passkeys, err := passkey.New(cfg.WebAuthnRPID, cfg.WebAuthnRPName, cfg.PublicBaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("webauthn: %w", err)
 	}
+
+	return &AuthHandler{
+		db:                db,
+		cfg:               cfg,
+		mfa:               auth.NewMFAStore(),
+		sessions:          auth.NewSessionService(db, cfg.RefreshTokenTTL),
+		oauth:             oauth.NewRegistry(providers...),
+		oauthState:        oauth.NewStateStore(),
+		oauthPending:      oauth.NewPendingStore(),
+		passkeys:          passkeys,
+		passkeyCeremonies: passkey.NewCeremonyStore(),
+	}, nil
 }
 
 func (h *AuthHandler) DB() *gorm.DB {
@@ -266,7 +279,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			"providers":      h.userProviders(user.ID),
 			"mfa": gin.H{
 				"totp_enabled":             user.TOTPEnabled(),
-				"webauthn_enabled":         false,
+				"webauthn_enabled":         h.countPasskeys(user.ID) > 0,
 				"recovery_codes_remaining": h.countUnusedRecoveryCodes(user.ID),
 			},
 		},

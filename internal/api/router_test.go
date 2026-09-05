@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 )
@@ -22,12 +23,19 @@ func testRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 
 	cfg := &config.Config{
-		JWTSecret:     []byte("test-secret-that-is-long-enough-for-hs256"),
-		PublicBaseURL: frontendOrigin,
+		JWTSecret:      []byte("test-secret-that-is-long-enough-for-hs256"),
+		PublicBaseURL:  frontendOrigin,
+		WebAuthnRPID:   "antiginx.pl",
+		WebAuthnRPName: config.DefaultWebAuthnRPName,
 	}
+	authHandler, err := handlers.NewAuthHandler(nil, cfg)
+	if err != nil {
+		t.Fatalf("NewAuthHandler: %v", err)
+	}
+
 	return NewRouter(
 		handlers.NewScanHandler(nil, nil),
-		handlers.NewAuthHandler(nil, cfg),
+		authHandler,
 		handlers.NewAdminHandler(nil),
 		cfg,
 	)
@@ -270,6 +278,71 @@ func TestOAuthLinkRoutesRejectForeignOrigin(t *testing.T) {
 	} {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
 			req := httptest.NewRequest(route.method, route.path, nil)
+			req.Header.Set("Origin", "https://attacker.invalid")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want 403", w.Code)
+			}
+		})
+	}
+}
+
+func TestWebAuthnRoutesRequireAToken(t *testing.T) {
+	r := testRouter(t)
+
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/auth/webauthn/register/options"},
+		{http.MethodPost, "/api/auth/webauthn/register/verify"},
+		{http.MethodGet, "/api/auth/webauthn/credentials"},
+		{http.MethodDelete, "/api/auth/webauthn/credentials/" + uuid.NewString()},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(route.method, route.path, nil))
+
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want 401", w.Code)
+			}
+		})
+	}
+}
+
+func TestWebAuthnLoginRoutesArePublic(t *testing.T) {
+	r := testRouter(t)
+
+	for _, path := range []string{
+		"/api/auth/webauthn/login/options",
+		"/api/auth/webauthn/login/verify",
+	} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, path, nil))
+
+			if w.Code == http.StatusUnauthorized {
+				t.Error("logowanie passkeyem wymaga tokenu, a musi być publiczne")
+			}
+			if w.Code == http.StatusNotFound {
+				t.Error("trasa nie jest zarejestrowana")
+			}
+		})
+	}
+}
+
+func TestWebAuthnRoutesRejectForeignOrigin(t *testing.T) {
+	r := testRouter(t)
+
+	for _, path := range []string{
+		"/api/auth/webauthn/login/options",
+		"/api/auth/webauthn/register/options",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
 			req.Header.Set("Origin", "https://attacker.invalid")
 
 			w := httptest.NewRecorder()

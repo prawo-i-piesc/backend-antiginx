@@ -20,6 +20,8 @@ const minJWTSecretLen = 32
 
 const totpEncryptionKeyLen = 32
 
+const DefaultWebAuthnRPName = "AntiGinx"
+
 type Config struct {
 	DatabaseURL string
 	RabbitMQURL string
@@ -37,6 +39,9 @@ type Config struct {
 
 	GoogleClientID     string
 	GoogleClientSecret string
+
+	WebAuthnRPID   string
+	WebAuthnRPName string
 }
 
 func (c *Config) GoogleEnabled() bool {
@@ -92,6 +97,9 @@ func Load() (*Config, error) {
 		problems = append(problems, "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together")
 	}
 
+	cfg.WebAuthnRPName = envOrDefault("WEBAUTHN_RP_NAME", DefaultWebAuthnRPName)
+	cfg.WebAuthnRPID = strings.TrimSpace(os.Getenv("WEBAUTHN_RPID"))
+
 	secure, err := envBool("COOKIE_SECURE", true)
 	if err != nil {
 		problems = append(problems, err.Error())
@@ -103,6 +111,15 @@ func Load() (*Config, error) {
 	}
 	if cfg.RefreshTokenTTL, err = envDuration("REFRESH_TOKEN_TTL", DefaultRefreshTokenTTL); err != nil {
 		problems = append(problems, err.Error())
+	}
+
+	if cfg.WebAuthnRPID == "" && cfg.PublicBaseURL != "" {
+		rpID, err := hostWithoutPort(cfg.PublicBaseURL)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("cannot derive WEBAUTHN_RPID from PUBLIC_BASE_URL: %v", err))
+		} else {
+			cfg.WebAuthnRPID = rpID
+		}
 	}
 
 	if len(problems) > 0 {
@@ -126,6 +143,24 @@ func normalizeOrigin(raw string) (string, error) {
 		return "", fmt.Errorf("must be a bare origin, without path, query or fragment")
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host), nil
+}
+
+func hostWithoutPort(origin string) (string, error) {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return "", err
+	}
+	if u.Hostname() == "" {
+		return "", fmt.Errorf("missing host")
+	}
+	return u.Hostname(), nil
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func decodeTOTPKey(raw string) ([]byte, error) {

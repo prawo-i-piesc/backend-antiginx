@@ -403,13 +403,13 @@ func (h *AuthHandler) HandleOAuthUnlink(c *gin.Context) {
 		return
 	}
 
-	remaining, err := h.countLoginMethodsExcluding(&user, provider)
+	methods, err := h.countLoginMethods(&user)
 	if err != nil {
 		log.Printf("OAuthUnlink: nie udało się policzyć metod logowania: %v", err)
 		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
-	if remaining == 0 {
+	if methods <= 1 {
 		httpx.Fail(c, httpx.CodeLastLoginMethod)
 		return
 	}
@@ -421,20 +421,6 @@ func (h *AuthHandler) HandleOAuthUnlink(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-func (h *AuthHandler) countLoginMethodsExcluding(user *models.User, provider string) (int64, error) {
-	var others int64
-	if err := h.db.Model(&models.OAuthAccount{}).
-		Where("user_id = ? AND provider <> ?", user.ID, provider).
-		Count(&others).Error; err != nil {
-		return 0, err
-	}
-
-	if user.HasPassword() {
-		others++
-	}
-	return others, nil
 }
 
 func (h *AuthHandler) userProviders(userID uuid.UUID) []string {

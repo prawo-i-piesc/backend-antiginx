@@ -118,6 +118,22 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		oauthLink.POST("/confirm", authHandler.HandleOAuthLinkConfirm)
 	}
 
+	webauthnPublic := r.Group("/api/auth/webauthn")
+	webauthnPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		webauthnPublic.POST("/login/options", authHandler.HandleWebAuthnLoginOptions)
+		webauthnPublic.POST("/login/verify", authHandler.HandleWebAuthnLoginVerify)
+	}
+
+	webauthn := r.Group("/api/auth/webauthn")
+	webauthn.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		webauthn.POST("/register/options", authHandler.HandleWebAuthnRegisterOptions)
+		webauthn.POST("/register/verify", authHandler.HandleWebAuthnRegisterVerify)
+		webauthn.GET("/credentials", authHandler.HandleWebAuthnCredentials)
+		webauthn.DELETE("/credentials/:id", authHandler.HandleWebAuthnDeleteCredential)
+	}
+
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{
