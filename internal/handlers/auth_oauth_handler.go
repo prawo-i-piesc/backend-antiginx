@@ -15,6 +15,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/auth/oauth"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +23,14 @@ const (
 	oauthExchangeTimeout = 15 * time.Second
 	loginPath            = "/login"
 	mfaPath              = "/login/mfa"
+	linkPath             = "/login/link"
 )
+
+type OAuthLinkConfirmRequest struct {
+	Password string `json:"password" binding:"required"`
+	Method   string `json:"method"`
+	Code     string `json:"code"`
+}
 
 func (h *AuthHandler) HandleOAuthStart(c *gin.Context) {
 	provider, ok := h.oauth.Get(c.Param("provider"))
@@ -115,9 +123,14 @@ func (h *AuthHandler) HandleOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	user, failure := h.resolveOAuthUser(flow.Provider, profile, email)
+	user, needsConfirmation, failure := h.resolveOAuthUser(flow.Provider, profile, email)
 	if failure != "" {
 		h.oauthRedirectError(c, failurePath, failure)
+		return
+	}
+
+	if needsConfirmation {
+		h.beginPendingLink(c, flow, profile, email, user)
 		return
 	}
 
@@ -135,7 +148,7 @@ func (h *AuthHandler) HandleOAuthCallback(c *gin.Context) {
 	c.Redirect(http.StatusFound, h.cfg.PublicBaseURL+flow.Next)
 }
 
-func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, email string) (*models.User, httpx.Code) {
+func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, email string) (*models.User, bool, httpx.Code) {
 	var account models.OAuthAccount
 	err := h.db.Where("provider = ? AND provider_user_id = ?", provider, profile.Subject).First(&account).Error
 	switch {
@@ -143,37 +156,131 @@ func (h *AuthHandler) resolveOAuthUser(provider string, profile *oauth.Profile, 
 		var user models.User
 		if err := h.db.Where("id = ?", account.UserID).First(&user).Error; err != nil {
 			log.Printf("resolveOAuthUser: powiązane konto wskazuje na nieistniejącego użytkownika: %v", err)
-			return nil, httpx.CodeInternal
+			return nil, false, httpx.CodeInternal
 		}
-		return &user, ""
+		return &user, false, ""
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		log.Printf("resolveOAuthUser: błąd bazy danych: %v", err)
-		return nil, httpx.CodeInternal
+		return nil, false, httpx.CodeInternal
 	}
 
 	var existing models.User
 	err = byEmail(h.db, email).First(&existing).Error
 	switch {
 	case err == nil:
-		if existing.EmailChangedAt != nil {
-			return nil, httpx.CodeOAuthAccountConflict
-		}
-		if err := h.attachOAuthAccount(&existing, provider, profile, email, true); err != nil {
-			log.Printf("resolveOAuthUser: nie udało się powiązać konta: %v", err)
-			return nil, httpx.CodeInternal
-		}
-		return &existing, ""
+		return &existing, true, ""
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		log.Printf("resolveOAuthUser: błąd bazy danych: %v", err)
-		return nil, httpx.CodeInternal
+		return nil, false, httpx.CodeInternal
 	}
 
 	user, err := h.createOAuthUser(provider, profile, email)
 	if err != nil {
 		log.Printf("resolveOAuthUser: nie udało się utworzyć konta: %v", err)
-		return nil, httpx.CodeInternal
+		return nil, false, httpx.CodeInternal
 	}
-	return user, ""
+	return user, false, ""
+}
+
+func (h *AuthHandler) beginPendingLink(c *gin.Context, flow *oauth.Flow, profile *oauth.Profile, email string, user *models.User) {
+	id, err := h.oauthPending.Issue(&oauth.PendingLink{
+		Provider: flow.Provider,
+		Subject:  profile.Subject,
+		Email:    email,
+		UserID:   user.ID.String(),
+		Next:     flow.Next,
+	})
+	if err != nil {
+		log.Printf("beginPendingLink: nie udało się zapisać oczekującego powiązania: %v", err)
+		h.oauthRedirectError(c, loginPath, httpx.CodeInternal)
+		return
+	}
+
+	auth.SetOAuthStateCookie(c, id, h.cfg.CookieSecure)
+	c.Redirect(http.StatusFound, h.cfg.PublicBaseURL+linkPath)
+}
+
+func (h *AuthHandler) HandleOAuthLinkPending(c *gin.Context) {
+	link, ok := h.oauthPending.Get(auth.OAuthStateCookie(c))
+	if !ok {
+		httpx.Fail(c, httpx.CodeOAuthStateInvalid)
+		return
+	}
+
+	var user models.User
+	if err := h.db.Where("id = ?", link.UserID).First(&user).Error; err != nil {
+		httpx.Fail(c, httpx.CodeOAuthStateInvalid)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"provider":      link.Provider,
+		"email":         link.Email,
+		"password_set":  user.HasPassword(),
+		"totp_required": user.TOTPEnabled(),
+		"expires_in":    int(time.Until(link.ExpiresAt).Seconds()),
+	})
+}
+
+func (h *AuthHandler) HandleOAuthLinkConfirm(c *gin.Context) {
+	var req OAuthLinkConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.FailValidation(c, err)
+		return
+	}
+
+	id := auth.OAuthStateCookie(c)
+
+	link, err := h.oauthPending.Attempt(id)
+	switch {
+	case errors.Is(err, oauth.ErrTooManyAttempts):
+		httpx.Fail(c, httpx.CodeRateLimited)
+		return
+	case err != nil:
+		httpx.Fail(c, httpx.CodeOAuthStateInvalid)
+		return
+	}
+
+	var user models.User
+	if err := h.db.Where("id = ?", link.UserID).First(&user).Error; err != nil {
+		httpx.Fail(c, httpx.CodeOAuthStateInvalid)
+		return
+	}
+
+	if !user.HasPassword() {
+		httpx.Fail(c, httpx.CodeOAuthAccountConflict)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword(user.Password, []byte(req.Password)); err != nil {
+		httpx.Fail(c, httpx.CodeInvalidCredentials)
+		return
+	}
+
+	amr := models.AMRPassword
+
+	if user.TOTPEnabled() {
+		if req.Code == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"mfa_required": true,
+				"methods":      h.availableMFAMethods(&user),
+			})
+			return
+		}
+		if !h.verifySecondFactor(c, &user, req.Method, req.Code) {
+			return
+		}
+		amr = models.AMRPasswordOTP
+	}
+
+	if err := h.attachOAuthAccount(&user, link.Provider, &oauth.Profile{Subject: link.Subject}, link.Email, true); err != nil {
+		log.Printf("OAuthLinkConfirm: nie udało się powiązać konta: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+
+	h.oauthPending.Consume(id)
+	h.issueSession(c, &user, amr, http.StatusOK)
 }
 
 func (h *AuthHandler) createOAuthUser(provider string, profile *oauth.Profile, email string) (*models.User, error) {

@@ -35,7 +35,7 @@ func TestIssueProducesDistinctSecrets(t *testing.T) {
 func TestIssueSanitizesNext(t *testing.T) {
 	store := NewStateStore()
 
-	_, flow, err := store.Issue("google", "https://evil.pl", "")
+	_, flow, err := store.Issue("google", "https://attacker.invalid", "")
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}

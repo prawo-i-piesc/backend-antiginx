@@ -61,8 +61,8 @@ func TestCORSRejectsForeignOrigins(t *testing.T) {
 	r := testRouter(t)
 
 	for _, origin := range []string{
-		"https://evil.pl",
-		"https://antiginx.pl.evil.pl",
+		"https://attacker.invalid",
+		"https://antiginx.pl.attacker.invalid",
 		"http://antiginx.pl",
 		"null",
 	} {
@@ -107,7 +107,7 @@ func TestMFARoutesRejectForeignOrigin(t *testing.T) {
 	} {
 		t.Run(path, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, path, nil)
-			req.Header.Set("Origin", "https://evil.pl")
+			req.Header.Set("Origin", "https://attacker.invalid")
 
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -137,7 +137,7 @@ func TestSessionRoutesRejectForeignOrigin(t *testing.T) {
 	for _, path := range []string{"/api/auth/refresh", "/api/auth/logout"} {
 		t.Run(path, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, path, nil)
-			req.Header.Set("Origin", "https://evil.pl")
+			req.Header.Set("Origin", "https://attacker.invalid")
 
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -218,13 +218,60 @@ func TestOAuthManagementRoutesRequireAToken(t *testing.T) {
 
 func TestOAuthManagementRoutesRejectForeignOrigin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/oauth/google/link", nil)
-	req.Header.Set("Origin", "https://evil.pl")
+	req.Header.Set("Origin", "https://attacker.invalid")
 
 	w := httptest.NewRecorder()
 	testRouter(t).ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403", w.Code)
+	}
+}
+
+func TestOAuthLinkRoutesWithoutPendingLink(t *testing.T) {
+	r := testRouter(t)
+
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/auth/oauth-link/pending"},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(route.method, route.path, nil))
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400", w.Code)
+			}
+			if !strings.Contains(w.Body.String(), "OAUTH_STATE_INVALID") {
+				t.Errorf("body = %s, want kod OAUTH_STATE_INVALID", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestOAuthLinkRoutesRejectForeignOrigin(t *testing.T) {
+	r := testRouter(t)
+
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/auth/oauth-link/pending"},
+		{http.MethodPost, "/api/auth/oauth-link/confirm"},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			req := httptest.NewRequest(route.method, route.path, nil)
+			req.Header.Set("Origin", "https://attacker.invalid")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want 403", w.Code)
+			}
+		})
 	}
 }
 

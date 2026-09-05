@@ -110,6 +110,13 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		oauthProtected.DELETE("/:provider", authHandler.HandleOAuthUnlink)
 	}
 
+	oauthLink := r.Group("/api/auth/oauth-link")
+	oauthLink.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		oauthLink.GET("/pending", authHandler.HandleOAuthLinkPending)
+		oauthLink.POST("/confirm", authHandler.HandleOAuthLinkConfirm)
+	}
+
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{

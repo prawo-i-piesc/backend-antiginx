@@ -52,8 +52,8 @@ func TestRequireOriginAllowsMissingHeader(t *testing.T) {
 
 func TestRequireOriginRejectsForeignOrigin(t *testing.T) {
 	for _, origin := range []string{
-		"https://evil.pl",
-		"https://antiginx.pl.evil.pl",
+		"https://attacker.invalid",
+		"https://antiginx.pl.attacker.invalid",
 		"http://antiginx.pl",
 		"null",
 	} {

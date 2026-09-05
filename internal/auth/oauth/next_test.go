@@ -19,16 +19,16 @@ func TestSanitizeNextAcceptsRelativePaths(t *testing.T) {
 
 func TestSanitizeNextRejectsOpenRedirects(t *testing.T) {
 	for _, next := range []string{
-		"https://evil.pl",
-		"http://evil.pl/x",
-		"//evil.pl",
-		"//evil.pl/path",
-		"/\\evil.pl",
-		"/\\/evil.pl",
+		"https://attacker.invalid",
+		"http://attacker.invalid/x",
+		"//attacker.invalid",
+		"//attacker.invalid/path",
+		"/\\attacker.invalid",
+		"/\\/attacker.invalid",
 		"dashboard",
 		"",
 		"javascript:alert(1)",
-		"/dashboard\r\nLocation: https://evil.pl",
+		"/dashboard\r\nLocation: https://attacker.invalid",
 		"/dashboard\nSet-Cookie: x=1",
 		"/dash\tboard",
 	} {

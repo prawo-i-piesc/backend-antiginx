@@ -34,12 +34,13 @@ type UpdatePasswordRequest struct {
 }
 
 type AuthHandler struct {
-	db         *gorm.DB
-	cfg        *config.Config
-	mfa        *auth.MFAStore
-	sessions   *auth.SessionService
-	oauth      *oauth.Registry
-	oauthState *oauth.StateStore
+	db           *gorm.DB
+	cfg          *config.Config
+	mfa          *auth.MFAStore
+	sessions     *auth.SessionService
+	oauth        *oauth.Registry
+	oauthState   *oauth.StateStore
+	oauthPending *oauth.PendingStore
 }
 
 type RegisterRequest struct {
@@ -64,12 +65,13 @@ func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
 	}
 
 	return &AuthHandler{
-		db:         db,
-		cfg:        cfg,
-		mfa:        auth.NewMFAStore(),
-		sessions:   auth.NewSessionService(db, cfg.RefreshTokenTTL),
-		oauth:      oauth.NewRegistry(providers...),
-		oauthState: oauth.NewStateStore(),
+		db:           db,
+		cfg:          cfg,
+		mfa:          auth.NewMFAStore(),
+		sessions:     auth.NewSessionService(db, cfg.RefreshTokenTTL),
+		oauth:        oauth.NewRegistry(providers...),
+		oauthState:   oauth.NewStateStore(),
+		oauthPending: oauth.NewPendingStore(),
 	}
 }
 
@@ -229,15 +231,10 @@ func (h *AuthHandler) respondWithMFAChallenge(c *gin.Context, user *models.User)
 
 	h.mfa.Issue(id, user.ID.String())
 
-	methods := []string{MFAMethodTOTP}
-	if h.countUnusedRecoveryCodes(user.ID) > 0 {
-		methods = append(methods, MFAMethodRecoveryCode)
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"mfa_required": true,
 		"mfa_token":    token,
-		"methods":      methods,
+		"methods":      h.availableMFAMethods(user),
 		"expires_in":   int(auth.MFATokenTTL.Seconds()),
 	})
 }

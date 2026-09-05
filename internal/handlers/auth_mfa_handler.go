@@ -254,29 +254,46 @@ func (h *AuthHandler) HandleMFAVerify(c *gin.Context) {
 		return
 	}
 
-	var verified bool
-	switch req.Method {
-	case MFAMethodTOTP:
-		verified = h.verifyTOTP(&user, req.Code)
-		if !verified {
-			httpx.Fail(c, httpx.CodeMFAInvalidCode)
-			return
-		}
-	case MFAMethodRecoveryCode:
-		verified, err = h.consumeRecoveryCode(user.ID, req.Code)
-		if err != nil {
-			log.Printf("MFAVerify: błąd bazy danych przy kodzie odzyskiwania: %v", err)
-			httpx.Fail(c, httpx.CodeInternal)
-			return
-		}
-		if !verified {
-			httpx.Fail(c, httpx.CodeRecoveryCodeInvalid)
-			return
-		}
+	if !h.verifySecondFactor(c, &user, req.Method, req.Code) {
+		return
 	}
 
 	h.mfa.Consume(claims.ID)
 	h.issueSession(c, &user, models.AMRPasswordOTP, http.StatusOK)
+}
+
+func (h *AuthHandler) availableMFAMethods(user *models.User) []string {
+	methods := []string{MFAMethodTOTP}
+	if h.countUnusedRecoveryCodes(user.ID) > 0 {
+		methods = append(methods, MFAMethodRecoveryCode)
+	}
+	return methods
+}
+
+func (h *AuthHandler) verifySecondFactor(c *gin.Context, user *models.User, method, code string) bool {
+	switch method {
+	case MFAMethodRecoveryCode:
+		used, err := h.consumeRecoveryCode(user.ID, code)
+		if err != nil {
+			log.Printf("verifySecondFactor: błąd bazy danych przy kodzie odzyskiwania: %v", err)
+			httpx.Fail(c, httpx.CodeInternal)
+			return false
+		}
+		if !used {
+			httpx.Fail(c, httpx.CodeRecoveryCodeInvalid)
+			return false
+		}
+		return true
+	case MFAMethodTOTP, "":
+		if !h.verifyTOTP(user, code) {
+			httpx.Fail(c, httpx.CodeMFAInvalidCode)
+			return false
+		}
+		return true
+	default:
+		httpx.Fail(c, httpx.CodeValidationFailed)
+		return false
+	}
 }
 
 func (h *AuthHandler) verifyTOTP(user *models.User, code string) bool {
