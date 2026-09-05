@@ -226,7 +226,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	if existingUser.TOTPEnabled() {
+	if h.requiresSecondFactor(&existingUser) {
 		h.respondWithMFAChallenge(c, &existingUser)
 		return
 	}
@@ -247,7 +247,7 @@ func (h *AuthHandler) respondWithMFAChallenge(c *gin.Context, user *models.User)
 	c.JSON(http.StatusOK, gin.H{
 		"mfa_required": true,
 		"mfa_token":    token,
-		"methods":      h.availableMFAMethods(user),
+		"methods":      h.loginMFAMethods(user),
 		"expires_in":   int(auth.MFATokenTTL.Seconds()),
 	})
 }
@@ -277,6 +277,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			"password_set":   user.HasPassword(),
 			"email_verified": user.EmailVerified,
 			"providers":      h.userProviders(user.ID),
+			"passkey_mode":   user.PasskeyMode,
 			"mfa": gin.H{
 				"totp_enabled":             user.TOTPEnabled(),
 				"webauthn_enabled":         h.countPasskeys(user.ID) > 0,

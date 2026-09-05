@@ -63,6 +63,19 @@ func (s *MFAStore) Attempt(id string) (string, error) {
 	return entry.userID, nil
 }
 
+// Peek zwraca użytkownika wyzwania, nie licząc próby. Pobranie opcji WebAuthn
+// nie jest zgadywaniem, więc nie może zbliżać do limitu.
+func (s *MFAStore) Peek(id string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	entry, ok := s.challenges[id]
+	if !ok || time.Now().After(entry.expiresAt) {
+		return "", false
+	}
+	return entry.userID, true
+}
+
 func (s *MFAStore) Consume(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

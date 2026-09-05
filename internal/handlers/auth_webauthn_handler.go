@@ -241,6 +241,13 @@ func (h *AuthHandler) HandleWebAuthnLoginVerify(c *gin.Context) {
 		return
 	}
 
+	// Konto, które trzyma passkey jako drugi składnik, nie może wejść samym
+	// podpisem — inaczej ten tryb dałoby się ominąć, pomijając hasło.
+	if !user.PasskeysReplacePassword() {
+		httpx.Fail(c, httpx.CodePasskeyPasswordRequired)
+		return
+	}
+
 	if credential.Authenticator.CloneWarning {
 		log.Printf("Ostrzeżenie: licznik podpisów klucza użytkownika %s sugeruje sklonowany authenticator", user.ID)
 	}
@@ -320,6 +327,38 @@ func (h *AuthHandler) userCredentials(userID uuid.UUID) ([]models.WebAuthnCreden
 	var stored []models.WebAuthnCredential
 	err := h.db.Where("user_id = ?", userID).Order("created_at").Find(&stored).Error
 	return stored, err
+}
+
+type PasskeyModeRequest struct {
+	Mode string `json:"mode" binding:"required,oneof=second_factor passwordless"`
+}
+
+func (h *AuthHandler) HandleSetPasskeyMode(c *gin.Context) {
+	var req PasskeyModeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.FailValidation(c, err)
+		return
+	}
+
+	var user models.User
+	if !h.loadCurrentUser(c, &user) {
+		return
+	}
+
+	// Bez klucza nie ma czym się zalogować, więc tryb bezhasłowy zamknąłby
+	// konto na głucho.
+	if req.Mode == models.PasskeyModePasswordless && h.countPasskeys(user.ID) == 0 {
+		httpx.Fail(c, httpx.CodeCredentialNotFound)
+		return
+	}
+
+	if err := h.db.Model(&user).Update("passkey_mode", req.Mode).Error; err != nil {
+		log.Printf("SetPasskeyMode: nie udało się zapisać trybu: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"passkey_mode": req.Mode})
 }
 
 func (h *AuthHandler) countPasskeys(userID uuid.UUID) int64 {

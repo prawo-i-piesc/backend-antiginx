@@ -48,6 +48,7 @@ const (
 	CodeWebAuthnChallengeInvalid   Code = "WEBAUTHN_CHALLENGE_INVALID"
 	CodeWebAuthnVerificationFailed Code = "WEBAUTHN_VERIFICATION_FAILED"
 	CodeCredentialNotFound         Code = "CREDENTIAL_NOT_FOUND"
+	CodePasskeyPasswordRequired    Code = "PASSKEY_PASSWORD_REQUIRED"
 
 	CodeRateLimited Code = "RATE_LIMITED"
 	CodeForbidden   Code = "FORBIDDEN"
@@ -92,6 +93,7 @@ var codeTable = map[Code]codeInfo{
 	CodeWebAuthnChallengeInvalid:   {http.StatusBadRequest, "Missing or expired WebAuthn challenge"},
 	CodeWebAuthnVerificationFailed: {http.StatusUnauthorized, "WebAuthn verification failed"},
 	CodeCredentialNotFound:         {http.StatusNotFound, "Credential not found"},
+	CodePasskeyPasswordRequired:    {http.StatusForbidden, "This account signs in with a password first"},
 
 	CodeRateLimited: {http.StatusTooManyRequests, "Too many requests"},
 	CodeForbidden:   {http.StatusForbidden, "Forbidden"},

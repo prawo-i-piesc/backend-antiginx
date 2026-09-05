@@ -87,6 +87,8 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	mfaPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
 	{
 		mfaPublic.POST("/verify", authHandler.HandleMFAVerify)
+		mfaPublic.POST("/webauthn/options", authHandler.HandleMFAWebAuthnOptions)
+		mfaPublic.POST("/webauthn/verify", authHandler.HandleMFAWebAuthnVerify)
 	}
 
 	mfa := r.Group("/api/auth/mfa")
@@ -132,6 +134,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		webauthn.POST("/register/verify", authHandler.HandleWebAuthnRegisterVerify)
 		webauthn.GET("/credentials", authHandler.HandleWebAuthnCredentials)
 		webauthn.DELETE("/credentials/:id", authHandler.HandleWebAuthnDeleteCredential)
+		webauthn.PUT("/mode", authHandler.HandleSetPasskeyMode)
 	}
 
 	admin := r.Group("/api/admin")

@@ -10,6 +10,7 @@ const (
 	AMRPassword    = "pwd"
 	AMRPasswordOTP = "pwd+otp"
 	AMRWebAuthn    = "webauthn"
+	AMRPasswordKey = "pwd+webauthn"
 	AMROAuth       = "oauth"
 )
 

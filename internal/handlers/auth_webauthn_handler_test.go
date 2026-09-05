@@ -74,14 +74,20 @@ func call(t *testing.T, r *gin.Engine, method, path, body string) *httptest.Resp
 
 func seedPasskeyUser(t *testing.T, db *gorm.DB) *models.User {
 	t.Helper()
+	return seedPasskeyUserInMode(t, db, models.PasskeyModePasswordless)
+}
+
+func seedPasskeyUserInMode(t *testing.T, db *gorm.DB, mode string) *models.User {
+	t.Helper()
 
 	user := &models.User{
-		ID:        newID(t),
-		FullName:  "Jan Kowalski",
-		Email:     "jan@example.com",
-		Role:      models.UserRoleUser,
-		CreatedAt: time.Now(),
-		Password:  []byte("nieistotny-hasz"),
+		ID:          newID(t),
+		FullName:    "Jan Kowalski",
+		Email:       "jan@example.com",
+		Role:        models.UserRoleUser,
+		CreatedAt:   time.Now(),
+		Password:    []byte("nieistotny-hasz"),
+		PasskeyMode: mode,
 	}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("utworzenie użytkownika: %v", err)
@@ -394,5 +400,41 @@ func TestPasskeyDeleteUnknownCredential(t *testing.T) {
 		if w.Code != http.StatusNotFound {
 			t.Errorf("dla %q status = %d, want 404", id, w.Code)
 		}
+	}
+}
+
+// Passkey trzymany jako drugi składnik nie może sam wpuścić na konto, bo
+// wtedy tryb "hasło + passkey" dałoby się ominąć, pomijając hasło.
+func TestPasskeyLoginRefusedInSecondFactorMode(t *testing.T) {
+	db := testDB(t)
+	user := seedPasskeyUserInMode(t, db, models.PasskeyModeSecondFactor)
+	r := passkeyRouter(passkeyHandler(t, db), user.ID)
+
+	rp, authenticator, credential := registerPasskey(t, r, user, "MacBook")
+
+	options := call(t, r, http.MethodPost, "/login/options", `{"email":"jan@example.com"}`)
+	if options.Code != http.StatusOK {
+		t.Fatalf("login/options: status = %d, body = %s", options.Code, options.Body.String())
+	}
+
+	var optionsBody struct {
+		Session string `json:"webauthn_session"`
+	}
+	if err := json.Unmarshal(options.Body.Bytes(), &optionsBody); err != nil {
+		t.Fatalf("odpowiedź nie jest poprawnym JSON-em: %v", err)
+	}
+
+	parsed, err := virtualwebauthn.ParseAssertionOptions(options.Body.String())
+	if err != nil {
+		t.Fatalf("ParseAssertionOptions: %v", err)
+	}
+
+	assertion := virtualwebauthn.CreateAssertionResponse(rp, authenticator, credential, *parsed)
+
+	verify := call(t, r, http.MethodPost, "/login/verify",
+		fmt.Sprintf(`{"webauthn_session": %q, "credential": %s}`, optionsBody.Session, assertion))
+	if verify.Code != http.StatusForbidden {
+		t.Fatalf("login/verify: status = %d, want %d, body = %s",
+			verify.Code, http.StatusForbidden, verify.Body.String())
 	}
 }

@@ -18,6 +18,7 @@ import (
 const (
 	MFAMethodTOTP         = "totp"
 	MFAMethodRecoveryCode = "recovery_code"
+	MFAMethodWebAuthn     = "webauthn"
 )
 
 type StepUpRequest struct {
@@ -268,6 +269,31 @@ func (h *AuthHandler) availableMFAMethods(user *models.User) []string {
 		methods = append(methods, MFAMethodRecoveryCode)
 	}
 	return methods
+}
+
+// loginMFAMethods wylicza to, czym da się domknąć logowanie. Różni się od
+// availableMFAMethods, bo passkeya nie sprawdza się kodem — ma własną parę
+// endpointów — a pozostałe przepływy potwierdzają operację właśnie kodem.
+func (h *AuthHandler) loginMFAMethods(user *models.User) []string {
+	methods := make([]string, 0, 3)
+	if user.TOTPEnabled() {
+		methods = append(methods, MFAMethodTOTP)
+	}
+	if !user.PasskeysReplacePassword() && h.countPasskeys(user.ID) > 0 {
+		methods = append(methods, MFAMethodWebAuthn)
+	}
+	if h.countUnusedRecoveryCodes(user.ID) > 0 {
+		methods = append(methods, MFAMethodRecoveryCode)
+	}
+	return methods
+}
+
+// requiresSecondFactor mówi, czy samo hasło wystarczy do wejścia na konto.
+func (h *AuthHandler) requiresSecondFactor(user *models.User) bool {
+	if user.TOTPEnabled() {
+		return true
+	}
+	return !user.PasskeysReplacePassword() && h.countPasskeys(user.ID) > 0
 }
 
 func (h *AuthHandler) verifySecondFactor(c *gin.Context, user *models.User, method, code string) bool {
