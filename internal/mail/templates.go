@@ -3,7 +3,6 @@ package mail
 import (
 	"fmt"
 	"html"
-	"net/url"
 	"strings"
 )
 
@@ -25,31 +24,16 @@ const (
 	colorHairline = "#e4e4e7"
 )
 
-// originOf wyciąga adres serwisu z samego linku. Logo musi pochodzić z tego
-// samego miejsca co link, więc branie go stąd nie pozwala tym dwóm się
-// rozjechać.
-func originOf(link string) string {
-	parsed, err := url.Parse(link)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return ""
-	}
-	return parsed.Scheme + "://" + parsed.Host
-}
-
 func layout(preheader, heading, intro, action, link, note string) string {
-	origin := originOf(link)
 	safeLink := html.EscapeString(link)
 
-	// Obrazy bywają domyślnie blokowane, więc marka musi czytać się też z
-	// samego tekstu alternatywnego.
-	logo := `<span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.08em">ANTIGINX</span>`
-	if origin != "" {
-		logo = fmt.Sprintf(
-			`<img src="%s/logotype.png" width="132" height="28" alt="AntiGinx"`+
-				` style="display:block;border:0;outline:none;text-decoration:none;height:28px">`,
-			html.EscapeString(origin),
-		)
-	}
+	// Obrazy bywają blokowane nawet gdy jadą w załączniku, więc marka musi
+	// czytać się także z samego tekstu alternatywnego.
+	logo := fmt.Sprintf(
+		`<img src="cid:%s" width="132" height="36" alt="AntiGinx"`+
+			` style="display:block;border:0;outline:none;text-decoration:none;height:36px">`,
+		logoContentID,
+	)
 
 	return fmt.Sprintf(`<!doctype html>
 <html lang="pl">
@@ -107,6 +91,7 @@ func VerificationMessage(to, link string) Message {
 			link,
 			note,
 		),
+		Inline: []InlineImage{logoAttachment()},
 	}
 }
 
@@ -131,5 +116,6 @@ func PasswordResetMessage(to, link string) Message {
 			link,
 			note,
 		),
+		Inline: []InlineImage{logoAttachment()},
 	}
 }

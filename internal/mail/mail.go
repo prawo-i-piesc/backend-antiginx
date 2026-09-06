@@ -13,6 +13,18 @@ type Message struct {
 	Subject string
 	HTML    string
 	Text    string
+
+	// Obrazki wysyłane razem z wiadomością i przywoływane w HTML przez
+	// cid:<ContentID>. Zdalny adres wymagałby publicznie osiągalnego hosta,
+	// a backend stoi w sieci wewnętrznej.
+	Inline []InlineImage
+}
+
+type InlineImage struct {
+	ContentID string
+	Filename  string
+	MIMEType  string
+	Content   []byte
 }
 
 type Mailer interface {

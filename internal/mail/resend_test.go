@@ -112,13 +112,23 @@ func TestTemplatesCarryTheLink(t *testing.T) {
 	}
 }
 
-// Logo jest doklejane z adresu wyprowadzonego z linku, więc wiadomość nie może
-// wskazywać na inny serwis niż ten, do którego prowadzi przycisk.
-func TestTemplatesTakeLogoFromTheLinkOrigin(t *testing.T) {
+// Logo jedzie z wiadomością, bo backend stoi w sieci wewnętrznej i klient
+// pocztowy nie miałby skąd pobrać go po adresie.
+func TestTemplatesShipTheLogoWithTheMessage(t *testing.T) {
 	msg := VerificationMessage("jan@example.com", "https://antiginx.pl/verify-email?token=abc")
 
-	if !strings.Contains(msg.HTML, `src="https://antiginx.pl/logotype.png"`) {
-		t.Errorf("logo nie pochodzi z adresu linku: %s", msg.HTML)
+	if len(msg.Inline) != 1 {
+		t.Fatalf("załączników inline: %d, want 1", len(msg.Inline))
+	}
+	logo := msg.Inline[0]
+	if len(logo.Content) == 0 {
+		t.Error("załącznik jest pusty")
+	}
+	if !strings.Contains(msg.HTML, "cid:"+logo.ContentID) {
+		t.Errorf("HTML nie przywołuje załącznika: %s", msg.HTML)
+	}
+	if strings.Contains(msg.HTML, "logotype.png\"") && strings.Contains(msg.HTML, "src=\"http") {
+		t.Error("HTML nadal linkuje logo po adresie")
 	}
 	if !strings.Contains(msg.HTML, `alt="AntiGinx"`) {
 		t.Error("brak tekstu alternatywnego, a obrazy bywają blokowane")

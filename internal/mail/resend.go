@@ -3,6 +3,7 @@ package mail
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,13 +33,28 @@ func NewResend(apiKey, from string) *Resend {
 }
 
 func (r *Resend) Send(ctx context.Context, msg Message) error {
-	payload, err := json.Marshal(map[string]any{
+	body := map[string]any{
 		"from":    r.from,
 		"to":      []string{msg.To},
 		"subject": msg.Subject,
 		"html":    msg.HTML,
 		"text":    msg.Text,
-	})
+	}
+
+	if len(msg.Inline) > 0 {
+		attachments := make([]map[string]any, 0, len(msg.Inline))
+		for _, image := range msg.Inline {
+			attachments = append(attachments, map[string]any{
+				"filename":     image.Filename,
+				"content":      base64.StdEncoding.EncodeToString(image.Content),
+				"content_id":   image.ContentID,
+				"content_type": image.MIMEType,
+			})
+		}
+		body["attachments"] = attachments
+	}
+
+	payload, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
