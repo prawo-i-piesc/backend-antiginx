@@ -111,3 +111,36 @@ func TestTemplatesCarryTheLink(t *testing.T) {
 		})
 	}
 }
+
+// Logo jest doklejane z adresu wyprowadzonego z linku, więc wiadomość nie może
+// wskazywać na inny serwis niż ten, do którego prowadzi przycisk.
+func TestTemplatesTakeLogoFromTheLinkOrigin(t *testing.T) {
+	msg := VerificationMessage("jan@example.com", "https://antiginx.pl/verify-email?token=abc")
+
+	if !strings.Contains(msg.HTML, `src="https://antiginx.pl/logotype.png"`) {
+		t.Errorf("logo nie pochodzi z adresu linku: %s", msg.HTML)
+	}
+	if !strings.Contains(msg.HTML, `alt="AntiGinx"`) {
+		t.Error("brak tekstu alternatywnego, a obrazy bywają blokowane")
+	}
+}
+
+// Wiadomość bez części tekstowej ląduje w spamie częściej i jest nieczytelna
+// tam, gdzie HTML jest wyłączony.
+func TestTemplatesKeepAPlainTextPart(t *testing.T) {
+	link := "https://antiginx.pl/reset-password?token=abc"
+
+	for name, msg := range map[string]Message{
+		"weryfikacja": VerificationMessage("jan@example.com", link),
+		"reset hasła": PasswordResetMessage("jan@example.com", link),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if strings.TrimSpace(msg.Text) == "" {
+				t.Fatal("brak części tekstowej")
+			}
+			if strings.Contains(msg.Text, "<") {
+				t.Error("część tekstowa zawiera znaczniki")
+			}
+		})
+	}
+}
