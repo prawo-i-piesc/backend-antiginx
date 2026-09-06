@@ -102,3 +102,20 @@ func TestAfterOAuthPathSendsFreshAccountToWelcome(t *testing.T) {
 		t.Fatalf("nowe konto: afterOAuthPath = %q, want %q", got, want)
 	}
 }
+
+// Konto bez hasła nie ma czego postawić przed kluczem, więc zapisany tryb
+// "hasło, potem passkey" nie może unieruchamiać jedynej drogi, jaką klucz daje.
+func TestPasskeyModeIgnoresSecondFactorWithoutPassword(t *testing.T) {
+	withPassword := &models.User{Password: []byte("hasz"), PasskeyMode: models.PasskeyModeSecondFactor}
+	if withPassword.PasskeysReplacePassword() {
+		t.Fatal("konto z hasłem w trybie second_factor nie może logować się samym kluczem")
+	}
+
+	withoutPassword := &models.User{PasskeyMode: models.PasskeyModeSecondFactor}
+	if !withoutPassword.PasskeysReplacePassword() {
+		t.Fatal("konto bez hasła musi móc logować się samym kluczem")
+	}
+	if got := withoutPassword.EffectivePasskeyMode(); got != models.PasskeyModePasswordless {
+		t.Fatalf("EffectivePasskeyMode = %q, want %q", got, models.PasskeyModePasswordless)
+	}
+}

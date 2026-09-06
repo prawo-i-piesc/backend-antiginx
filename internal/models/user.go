@@ -37,8 +37,23 @@ func (u *User) HasPassword() bool {
 }
 
 // PasskeysReplacePassword mówi, czy sam passkey wystarczy do zalogowania.
+//
+// Konto bez hasła nie ma czego postawić przed kluczem, więc tryb "hasło, potem
+// passkey" jest tam niespełnialny: logowania hasłem nie ma co domykać, a
+// zapisany tryb blokowałby jedyną drogę, jaka klucz daje.
 func (u *User) PasskeysReplacePassword() bool {
+	if !u.HasPassword() {
+		return true
+	}
 	return u.PasskeyMode == PasskeyModePasswordless
+}
+
+// EffectivePasskeyMode to tryb faktycznie obowiązujący, nie sam zapis w bazie.
+func (u *User) EffectivePasskeyMode() string {
+	if u.PasskeysReplacePassword() {
+		return PasskeyModePasswordless
+	}
+	return PasskeyModeSecondFactor
 }
 
 func (u *User) TOTPEnabled() bool {

@@ -284,7 +284,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			"password_set":   user.HasPassword(),
 			"email_verified": user.EmailVerified,
 			"providers":      h.userProviders(user.ID),
-			"passkey_mode":   user.PasskeyMode,
+			"passkey_mode":   user.EffectivePasskeyMode(),
 			"mfa": gin.H{
 				"totp_enabled":             user.TOTPEnabled(),
 				"webauthn_enabled":         h.countPasskeys(user.ID) > 0,
