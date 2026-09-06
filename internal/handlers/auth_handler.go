@@ -16,6 +16,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/auth/passkey"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
+	"github.com/prawo-i-piesc/backend/internal/mail"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -47,6 +48,9 @@ type AuthHandler struct {
 
 	passkeys          *webauthn.WebAuthn
 	passkeyCeremonies *passkey.CeremonyStore
+
+	mailer  mail.Mailer
+	limiter *auth.RateLimiter
 }
 
 type RegisterRequest struct {
@@ -58,6 +62,17 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
+}
+
+func newMailer(cfg *config.Config) mail.Mailer {
+	switch cfg.MailTransport {
+	case config.MailTransportResend:
+		return mail.NewResend(cfg.ResendAPIKey, cfg.MailFrom)
+	case config.MailTransportLog:
+		return mail.LogMailer{}
+	default:
+		return mail.NoopMailer{}
+	}
 }
 
 func NewAuthHandler(db *gorm.DB, cfg *config.Config) (*AuthHandler, error) {
@@ -92,6 +107,8 @@ func NewAuthHandler(db *gorm.DB, cfg *config.Config) (*AuthHandler, error) {
 		oauthPending:      oauth.NewPendingStore(),
 		passkeys:          passkeys,
 		passkeyCeremonies: passkey.NewCeremonyStore(),
+		mailer:            newMailer(cfg),
+		limiter:           auth.NewRateLimiter(),
 	}, nil
 }
 
@@ -204,6 +221,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	h.SendEmailVerification(&newUser)
 	h.issueSession(c, &newUser, models.AMRPassword, http.StatusCreated)
 }
 
@@ -358,6 +376,10 @@ func (h *AuthHandler) HandleUpdateEmail(c *gin.Context) {
 		log.Printf("UpdateEmail: nie udało się zapisać zmiany: %v", err)
 		httpx.Fail(c, httpx.CodeInternal)
 		return
+	}
+
+	if !user.EmailVerified {
+		h.SendEmailVerification(&user)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Email updated successfully"})

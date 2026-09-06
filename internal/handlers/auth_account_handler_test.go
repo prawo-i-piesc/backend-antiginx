@@ -26,6 +26,7 @@ func testDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Session{}, &models.RecoveryCode{},
 		&models.OAuthAccount{}, &models.WebAuthnCredential{},
+		&models.EmailVerificationToken{}, &models.PasswordResetToken{},
 		&models.PremiumScan{}, &models.ScanResult{},
 	); err != nil {
 		t.Fatalf("migracja bazy testowej: %v", err)

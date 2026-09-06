@@ -137,6 +137,20 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		webauthn.PUT("/mode", authHandler.HandleSetPasskeyMode)
 	}
 
+	mailPublic := r.Group("/api/auth")
+	mailPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		mailPublic.POST("/email/verify", authHandler.HandleEmailVerify)
+		mailPublic.POST("/password/forgot", authHandler.HandlePasswordForgot)
+		mailPublic.POST("/password/reset", authHandler.HandlePasswordReset)
+	}
+
+	mailProtected := r.Group("/api/auth")
+	mailProtected.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		mailProtected.POST("/email/verify/request", authHandler.HandleEmailVerificationRequest)
+	}
+
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{

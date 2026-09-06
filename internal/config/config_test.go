@@ -12,6 +12,7 @@ var allKeys = []string{
 	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
 	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
 	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
+	"MAIL_TRANSPORT", "MAIL_FROM", "RESEND_API_KEY",
 }
 
 const testTOTPKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -327,6 +328,69 @@ func TestProvidersAreIndependent(t *testing.T) {
 	}
 	if cfg.GitHubEnabled() {
 		t.Error("GitHub włączył się bez własnych kluczy")
+	}
+}
+
+func TestMailTransportDefaults(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MailTransport != MailTransportNone {
+		t.Errorf("MailTransport = %q, bez klucza API wysyłka ma być wyłączona", cfg.MailTransport)
+	}
+}
+
+func TestMailTransportTurnsOnWithAPIKey(t *testing.T) {
+	env := validEnv()
+	env["RESEND_API_KEY"] = "re_klucz"
+	env["MAIL_FROM"] = "AntiGinx <noreply@antiginx.pl>"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MailTransport != MailTransportResend {
+		t.Errorf("MailTransport = %q, want %q", cfg.MailTransport, MailTransportResend)
+	}
+}
+
+func TestResendRequiresKeyAndSender(t *testing.T) {
+	tests := []struct {
+		name   string
+		apiKey string
+		from   string
+	}{
+		{"brak klucza", "", "noreply@antiginx.pl"},
+		{"brak nadawcy", "re_klucz", ""},
+		{"brak obu", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := validEnv()
+			env["MAIL_TRANSPORT"] = MailTransportResend
+			env["RESEND_API_KEY"] = tt.apiKey
+			env["MAIL_FROM"] = tt.from
+			setEnv(t, env)
+
+			if _, err := Load(); err == nil {
+				t.Error("Load przyjął niepełną konfigurację wysyłki")
+			}
+		})
+	}
+}
+
+func TestMailTransportRejectsUnknownValue(t *testing.T) {
+	env := validEnv()
+	env["MAIL_TRANSPORT"] = "sendgrid"
+	setEnv(t, env)
+
+	if _, err := Load(); err == nil {
+		t.Error("Load przyjął nieznany transport")
 	}
 }
 

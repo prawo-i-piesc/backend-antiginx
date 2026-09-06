@@ -373,6 +373,60 @@ func TestWebAuthnRoutesRejectForeignOrigin(t *testing.T) {
 	}
 }
 
+func TestMailRoutesArePublic(t *testing.T) {
+	r := testRouter(t)
+
+	for _, path := range []string{
+		"/api/auth/email/verify",
+		"/api/auth/password/forgot",
+		"/api/auth/password/reset",
+	} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, path, nil))
+
+			if w.Code == http.StatusUnauthorized {
+				t.Error("trasa wymaga tokenu, a musi być publiczna")
+			}
+			if w.Code == http.StatusNotFound {
+				t.Error("trasa nie jest zarejestrowana")
+			}
+		})
+	}
+}
+
+func TestVerificationRequestRequiresAToken(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/auth/email/verify/request", nil))
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", w.Code)
+	}
+}
+
+func TestMailRoutesRejectForeignOrigin(t *testing.T) {
+	r := testRouter(t)
+
+	for _, path := range []string{
+		"/api/auth/email/verify",
+		"/api/auth/password/forgot",
+		"/api/auth/password/reset",
+		"/api/auth/email/verify/request",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("Origin", "https://attacker.invalid")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want 403", w.Code)
+			}
+		})
+	}
+}
+
 func TestProtectedRoutesRequireAToken(t *testing.T) {
 	r := testRouter(t)
 

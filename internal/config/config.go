@@ -22,6 +22,12 @@ const totpEncryptionKeyLen = 32
 
 const DefaultWebAuthnRPName = "AntiGinx"
 
+const (
+	MailTransportResend = "resend"
+	MailTransportLog    = "log"
+	MailTransportNone   = "none"
+)
+
 type Config struct {
 	DatabaseURL string
 	RabbitMQURL string
@@ -45,6 +51,10 @@ type Config struct {
 
 	WebAuthnRPID   string
 	WebAuthnRPName string
+
+	MailTransport string
+	MailFrom      string
+	ResendAPIKey  string
 }
 
 func (c *Config) GoogleEnabled() bool {
@@ -113,6 +123,23 @@ func Load() (*Config, error) {
 	cfg.WebAuthnRPName = envOrDefault("WEBAUTHN_RP_NAME", DefaultWebAuthnRPName)
 	cfg.WebAuthnRPID = strings.TrimSpace(os.Getenv("WEBAUTHN_RPID"))
 
+	cfg.ResendAPIKey = strings.TrimSpace(os.Getenv("RESEND_API_KEY"))
+	cfg.MailFrom = strings.TrimSpace(os.Getenv("MAIL_FROM"))
+	cfg.MailTransport = strings.ToLower(envOrDefault("MAIL_TRANSPORT", defaultMailTransport(cfg.ResendAPIKey)))
+
+	switch cfg.MailTransport {
+	case MailTransportResend:
+		if cfg.ResendAPIKey == "" {
+			problems = append(problems, "RESEND_API_KEY is required when MAIL_TRANSPORT is resend")
+		}
+		if cfg.MailFrom == "" {
+			problems = append(problems, "MAIL_FROM is required when MAIL_TRANSPORT is resend")
+		}
+	case MailTransportLog, MailTransportNone:
+	default:
+		problems = append(problems, fmt.Sprintf("MAIL_TRANSPORT must be resend, log or none, got %q", cfg.MailTransport))
+	}
+
 	secure, err := envBool("COOKIE_SECURE", true)
 	if err != nil {
 		problems = append(problems, err.Error())
@@ -156,6 +183,13 @@ func normalizeOrigin(raw string) (string, error) {
 		return "", fmt.Errorf("must be a bare origin, without path, query or fragment")
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host), nil
+}
+
+func defaultMailTransport(apiKey string) string {
+	if apiKey != "" {
+		return MailTransportResend
+	}
+	return MailTransportNone
 }
 
 func hostWithoutPort(origin string) (string, error) {
