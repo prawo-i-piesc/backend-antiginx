@@ -53,29 +53,9 @@ jobs:
                 exit 1
             fi
 
-        - name: 🛠️ Trivy -- Install binary
-          env:
-            TRIVY_VERSION: v0.70.0
-            TRIVY_BIN_DIR: ${{ runner.temp }}/trivy-bin
-          run: |
-            echo "${TRIVY_BIN_DIR}" >> "${GITHUB_PATH}"
-            for attempt in 1 2 3; do
-                echo "⚙️ Installing Trivy ${TRIVY_VERSION} (attempt ${attempt}/3):"
-                if curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_VERSION}/contrib/install.sh" \
-                    | sh -s -- -b "${TRIVY_BIN_DIR}" "${TRIVY_VERSION}"; then
-                    echo "✅ Trivy installed."
-                    exit 0
-                fi
-                echo "⚠️ Download failed, retrying in 15s."
-                sleep 15
-            done
-            echo "❌ Could not install Trivy."
-            exit 1
-
         - name: 🧪 Trivy -- Test Vuln, Secret, Misconfig -> File System
           uses: aquasecurity/trivy-action@v0.36.0
           with:
-            skip-setup-trivy: true
             scan-type: fs
             scan-ref: .
             ignore-unfixed: true
