@@ -2,42 +2,66 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/CLI/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/Docker/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/DockerCompose/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/QuickStart/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/api/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
+    </url>
+    <url>
+         <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/auth/</loc>
+         <lastmod>2026-09-13</lastmod>
+    </url>
+    <url>
+         <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/auth/oauth/</loc>
+         <lastmod>2026-09-13</lastmod>
+    </url>
+    <url>
+         <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/auth/passkey/</loc>
+         <lastmod>2026-09-13</lastmod>
+    </url>
+    <url>
+         <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/config/</loc>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/handlers/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
+    </url>
+    <url>
+         <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/httpx/</loc>
+         <lastmod>2026-09-13</lastmod>
+    </url>
+    <url>
+         <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/mail/</loc>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/internal/models/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/main/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
     <url>
          <loc>https://prawo-i-piesc.github.io/backend-antiginx/middleware/</loc>
-         <lastmod>2026-07-01</lastmod>
+         <lastmod>2026-09-13</lastmod>
     </url>
 </urlset>
