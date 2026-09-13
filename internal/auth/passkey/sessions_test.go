@@ -79,7 +79,11 @@ func TestRegistrationKeyIsPerUser(t *testing.T) {
 	if RegistrationKey(first) == RegistrationKey(second) {
 		t.Error("dwaj użytkownicy dostali ten sam klucz rejestracji")
 	}
-	if RegistrationKey(first) != RegistrationKey(first) {
+	sameUser, err := uuid.Parse(first.String())
+	if err != nil {
+		t.Fatalf("uuid: %v", err)
+	}
+	if RegistrationKey(first) != RegistrationKey(sameUser) {
 		t.Error("klucz rejestracji nie jest stabilny")
 	}
 }
