@@ -1,6 +1,6 @@
 module github.com/prawo-i-piesc/backend
 
-go 1.25.11
+go 1.26.0
 
 require (
 	github.com/coreos/go-oidc/v3 v3.20.0
@@ -14,8 +14,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pquerna/otp v1.5.0
-	github.com/rabbitmq/amqp091-go v1.10.0
-	golang.org/x/crypto v0.55.0
+	github.com/rabbitmq/amqp091-go v1.13.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/oauth2 v0.36.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
