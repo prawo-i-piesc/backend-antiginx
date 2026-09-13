@@ -77,9 +77,8 @@ func Load() (*Config, error) {
 		RabbitMQURL: strings.TrimSpace(os.Getenv("RABBITMQ_URL")),
 	}
 
-	secret := os.Getenv("JWT_SECRET")
+	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	cfg.JWTSecret = []byte(secret)
-
 	if cfg.DatabaseURL == "" {
 		problems = append(problems, "DATABASE_URL is required")
 	}
