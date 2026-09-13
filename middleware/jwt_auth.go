@@ -1,59 +1,40 @@
 package middleware
 
 import (
-	"fmt"
-	"net/http"
-	"os"
+	"errors"
+	"log"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
 )
 
-func RequireAuth() gin.HandlerFunc {
+func RequireAuth(secret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Access not authorized",
-			})
+			httpx.Fail(c, httpx.CodeSessionExpired)
 			return
 		}
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format (Bearer required)"})
+			httpx.Fail(c, httpx.CodeSessionExpired)
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		})
-
-		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		claims, err := auth.ParseToken(secret, tokenString, auth.TokenTypeAccess)
+		if err != nil {
+			httpx.Fail(c, httpx.CodeSessionExpired)
 			return
 		}
 
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			if sub, ok := claims["sub"].(string); ok {
-				c.Set("userID", sub)
-			} else {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-				return
-			}
-
-			if role, ok := claims["role"].(string); ok {
-				c.Set("userRole", strings.ToLower(strings.TrimSpace(role)))
-			}
-		}
+		c.Set("userID", claims.Subject)
+		c.Set("userRole", claims.Role)
 
 		c.Next()
 	}
@@ -63,29 +44,31 @@ func RequireAdmin(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, exists := c.Get("userID")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
+			log.Printf("RequireAdmin: brak userID w kontekście — trasa poza RequireAuth")
+			httpx.Fail(c, httpx.CodeInternal)
 			return
 		}
 
 		userIDStr, ok := userID.(string)
 		if !ok || strings.TrimSpace(userIDStr) == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Access not authorized"})
+			log.Printf("RequireAdmin: userID w kontekście ma nieoczekiwany typ %T", userID)
+			httpx.Fail(c, httpx.CodeInternal)
 			return
 		}
 
 		var user models.User
-		result := db.Select("id", "role").Where("id = ?", userIDStr).First(&user)
-		if result.Error != nil {
-			if result.Error == gorm.ErrRecordNotFound {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		if err := db.Select("id", "role").Where("id = ?", userIDStr).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				httpx.Fail(c, httpx.CodeSessionExpired)
 				return
 			}
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+			log.Printf("RequireAdmin: błąd bazy danych przy pobieraniu roli: %v", err)
+			httpx.Fail(c, httpx.CodeInternal)
 			return
 		}
 
 		if strings.ToLower(strings.TrimSpace(user.Role)) != models.UserRoleAdmin {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+			httpx.Fail(c, httpx.CodeForbidden)
 			return
 		}
 

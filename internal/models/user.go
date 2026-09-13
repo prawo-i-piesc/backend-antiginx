@@ -7,6 +7,12 @@ import (
 )
 
 const (
+	// Passkey albo domyka logowanie hasłem, albo je zastępuje. Domyślnie
+	// domyka, bo dodanie klucza ma konto wzmacniać, a nie otwierać nową,
+	// samodzielną drogę wejścia bez wiedzy właściciela.
+	PasskeyModeSecondFactor = "second_factor"
+	PasskeyModePasswordless = "passwordless"
+
 	UserRoleUser  = "user"
 	UserRoleAdmin = "admin"
 )
@@ -18,4 +24,38 @@ type User struct {
 	Role      string    `gorm:"type:varchar(32);not null;default:user;index" json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 	Password  []byte    `json:"-"`
+
+	EmailVerified  bool       `gorm:"not null;default:false" json:"email_verified"`
+	EmailChangedAt *time.Time `json:"-"`
+	TOTPSecret     []byte     `json:"-"`
+	TOTPEnabledAt  *time.Time `json:"-"`
+	PasskeyMode    string     `gorm:"type:varchar(32);not null;default:second_factor" json:"-"`
+}
+
+func (u *User) HasPassword() bool {
+	return len(u.Password) > 0
+}
+
+// PasskeysReplacePassword mówi, czy sam passkey wystarczy do zalogowania.
+//
+// Konto bez hasła nie ma czego postawić przed kluczem, więc tryb "hasło, potem
+// passkey" jest tam niespełnialny: logowania hasłem nie ma co domykać, a
+// zapisany tryb blokowałby jedyną drogę, jaka klucz daje.
+func (u *User) PasskeysReplacePassword() bool {
+	if !u.HasPassword() {
+		return true
+	}
+	return u.PasskeyMode == PasskeyModePasswordless
+}
+
+// EffectivePasskeyMode to tryb faktycznie obowiązujący, nie sam zapis w bazie.
+func (u *User) EffectivePasskeyMode() string {
+	if u.PasskeysReplacePassword() {
+		return PasskeyModePasswordless
+	}
+	return PasskeyModeSecondFactor
+}
+
+func (u *User) TOTPEnabled() bool {
+	return u.TOTPEnabledAt != nil
 }

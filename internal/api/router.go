@@ -9,37 +9,25 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/middleware"
 )
 
-// NewRouter creates and configures a new Gin router with all API endpoints.
-//
-// The router exposes the following public endpoints under /api prefix:
-//
-//   - POST /api/scans    - Submit a new security scan request
-//   - POST /api/results  - Submit scan results from a worker
-//   - GET  /api/scans/:id - Retrieve scan details and results by ID
-//
-// Parameters:
-//   - scanHandler: Handler instance containing business logic for scan operations
-//
-// Returns:
-//   - *gin.Engine: Configured Gin router ready to serve HTTP requests
-//
-// Example:
-//
-//	handler := handlers.NewScanHandler(amqpChannel, db)
-//	router := api.NewRouter(handler)
-//	router.Run(":8080")
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler) *gin.Engine {
-	r := gin.Default()
+var quietPaths = []string{"/api/auth/refresh"}
 
-	// TODO : Ograniczyć domeny w produkcji
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config) *gin.Engine {
+	httpx.RegisterValidationFieldNames()
+
+	r := gin.New()
+	r.Use(
+		gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: quietPaths}),
+		gin.Recovery(),
+	)
+
 	r.Use(cors.New(cors.Config{
-		AllowOriginFunc: func(origin string) bool {
-			return true
-		},
+		AllowOrigins:     []string{cfg.PublicBaseURL},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -67,8 +55,21 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		public.POST("/auth/login", authHandler.Login)
 	}
 
+	session := r.Group("/api/auth")
+	session.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		session.POST("/refresh", authHandler.HandleRefresh)
+	}
+
+	sessionProtected := r.Group("/api/auth")
+	sessionProtected.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		sessionProtected.POST("/logout", authHandler.HandleLogout)
+		sessionProtected.DELETE("/account", authHandler.HandleDeleteAccount)
+	}
+
 	protected := r.Group("/api")
-	protected.Use(middleware.RequireAuth())
+	protected.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		protected.GET("/auth/me", authHandler.Me)
 		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
@@ -82,8 +83,76 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.PATCH("/utils/profile/password", authHandler.HandleUpdatePassword)
 	}
 
+	mfaPublic := r.Group("/api/auth/mfa")
+	mfaPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		mfaPublic.POST("/verify", authHandler.HandleMFAVerify)
+		mfaPublic.POST("/webauthn/options", authHandler.HandleMFAWebAuthnOptions)
+		mfaPublic.POST("/webauthn/verify", authHandler.HandleMFAWebAuthnVerify)
+	}
+
+	mfa := r.Group("/api/auth/mfa")
+	mfa.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		mfa.POST("/totp/enroll", authHandler.HandleTOTPEnroll)
+		mfa.POST("/totp/activate", authHandler.HandleTOTPActivate)
+		mfa.DELETE("/totp", authHandler.HandleTOTPDisable)
+		mfa.POST("/recovery-codes/regenerate", authHandler.HandleRegenerateRecoveryCodes)
+	}
+
+	oauthPublic := r.Group("/api/auth/oauth")
+	{
+		oauthPublic.GET("/:provider/start", authHandler.HandleOAuthStart)
+		oauthPublic.GET("/:provider/callback", authHandler.HandleOAuthCallback)
+	}
+
+	oauthProtected := r.Group("/api/auth/oauth")
+	oauthProtected.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		oauthProtected.POST("/:provider/link", authHandler.HandleOAuthLink)
+		oauthProtected.DELETE("/:provider", authHandler.HandleOAuthUnlink)
+	}
+
+	oauthLink := r.Group("/api/auth/oauth-link")
+	oauthLink.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		oauthLink.GET("/pending", authHandler.HandleOAuthLinkPending)
+		oauthLink.POST("/confirm", authHandler.HandleOAuthLinkConfirm)
+	}
+
+	webauthnPublic := r.Group("/api/auth/webauthn")
+	webauthnPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		webauthnPublic.POST("/login/options", authHandler.HandleWebAuthnLoginOptions)
+		webauthnPublic.POST("/login/verify", authHandler.HandleWebAuthnLoginVerify)
+	}
+
+	webauthn := r.Group("/api/auth/webauthn")
+	webauthn.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		webauthn.POST("/register/options", authHandler.HandleWebAuthnRegisterOptions)
+		webauthn.POST("/register/verify", authHandler.HandleWebAuthnRegisterVerify)
+		webauthn.GET("/credentials", authHandler.HandleWebAuthnCredentials)
+		webauthn.DELETE("/credentials/:id", authHandler.HandleWebAuthnDeleteCredential)
+		webauthn.PUT("/mode", authHandler.HandleSetPasskeyMode)
+	}
+
+	mailPublic := r.Group("/api/auth")
+	mailPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		mailPublic.POST("/email/verify", authHandler.HandleEmailVerify)
+		mailPublic.POST("/password/forgot", authHandler.HandlePasswordForgot)
+		mailPublic.POST("/password/reset", authHandler.HandlePasswordReset)
+	}
+
+	mailProtected := r.Group("/api/auth")
+	mailProtected.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		mailProtected.POST("/email/verify/request", authHandler.HandleEmailVerificationRequest)
+	}
+
 	admin := r.Group("/api/admin")
-	admin.Use(middleware.RequireAuth(), middleware.RequireAdmin(authHandler.DB()))
+	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{
 		admin.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
