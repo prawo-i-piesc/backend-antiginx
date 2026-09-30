@@ -10,8 +10,8 @@ ARG USER_GID=1001
 
 
 # Base images for stages
-FROM golang:1.26.8-alpine AS base
-FROM alpine:3.23 AS run
+FROM golang:1.27-alpine AS base
+FROM alpine:3.24 AS run
 # ---
 
 

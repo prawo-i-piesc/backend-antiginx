@@ -1,74 +1,74 @@
 name: Docker Image Publish
 run-name: >-
-    ${{ 
-        github.event_name == 'push' 
-        && format('Build & Push Docker Image: Merge -> {0}', github.event.head_commit.message)
-    }}
+  ${{
+      github.event_name == 'push'
+      && format('Build & Push Docker Image: Merge -> {0}', github.event.head_commit.message)
+  }}
 
 on:
-    push:
-        branches: [ "main" ]
+  push:
+    branches: ["main"]
 
 permissions:
-    contents: read
-    packages: write
+  contents: read
+  packages: write
 
 concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    build-docker:
-        name: Build Multi-Arch Image
-        runs-on: ubuntu-latest
-        timeout-minutes: 60
+  build-docker:
+    name: Build Multi-Arch Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
-        steps:
-        - name: 📥 Git -- Checkout repository
-          uses: actions/checkout@v6
-          with:
-            fetch-depth: 0
+    steps:
+      - name: 📥 Git -- Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-        - name: 🔧 QEMU -- Set up
-          uses: docker/setup-qemu-action@v3
+      - name: 🔧 QEMU -- Set up
+        uses: docker/setup-qemu-action@v4
 
-        - name: 🐳 Docker -- Set up Buildx
-          uses: docker/setup-buildx-action@v3
+      - name: 🐳 Docker -- Set up Buildx
+        uses: docker/setup-buildx-action@v4
 
-        - name: 🏷️ Git -- Generate Version
-          id: version
-          uses: PaulHatch/semantic-version@v6.0.2
-          with:
-            tag_prefix: "v"
-            major_pattern: "(MAJOR)"
-            minor_pattern: "(MINOR)"
-            version_format: "${major}.${minor}.${increment}"
+      - name: 🏷️ Git -- Generate Version
+        id: version
+        uses: PaulHatch/semantic-version@v6.0.4
+        with:
+          tag_prefix: "v"
+          major_pattern: "(MAJOR)"
+          minor_pattern: "(MINOR)"
+          version_format: "${major}.${minor}.${increment}"
 
-        - name: 🏷️ Docker -- Set up Metadata
-          id: metadata
-          uses: docker/metadata-action@v5
-          with:
-            images: |
-              name=ghcr.io/${{ github.repository }}
-            flavor: |
-              latest=true
-            tags: |
-              type=raw,value=${{ steps.version.outputs.version }}
+      - name: 🏷️ Docker -- Set up Metadata
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            name=ghcr.io/${{ github.repository }}
+          flavor: |
+            latest=true
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
 
-        - name: 🔑 Docker -- Log in to GHCR
-          uses: docker/login-action@v3
-          with:
-            registry: ghcr.io
-            username: ${{ github.actor }}
-            password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 🔑 Docker -- Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: 🚀 Docker -- Build and push
-          uses: docker/build-push-action@v6
-          with:
-            context: .
-            platforms: linux/amd64,linux/arm64
-            push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-            tags: ${{ steps.metadata.outputs.tags }}
-            labels: ${{ steps.metadata.outputs.labels }}
-            cache-from: type=gha
-            cache-to: type=gha,mode=max
+      - name: 🚀 Docker -- Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
