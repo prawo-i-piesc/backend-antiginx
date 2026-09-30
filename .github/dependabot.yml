@@ -1,17 +1,15 @@
 version: 2
 updates:
-  - package-ecosystem: 'github-actions'
-    directory: '/'
-
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '19:00'
-      timezone: 'Europe/Warsaw'
+      interval: "weekly"
+      day: "monday"
+      time: "19:00"
+      timezone: "Europe/Warsaw"
 
     commit-message:
-      prefix: 'deps: '
-
+      prefix: "deps: "
     open-pull-requests-limit: 5
 
     groups:
@@ -20,36 +18,22 @@ updates:
 
     ignore:
       - dependency-name: "*"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
 
-  - package-ecosystem: 'docker'
-    directory: '/'
-
+  - package-ecosystem: "docker"
+    directory: "/"
     schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '19:00'
-      timezone: 'Europe/Warsaw'
+      interval: "weekly"
+      day: "monday"
+      time: "19:00"
+      timezone: "Europe/Warsaw"
 
     commit-message:
-      prefix: 'deps: '
-
+      prefix: "deps: "
     open-pull-requests-limit: 3
 
-  - package-ecosystem: 'gomod'
-    directory: '/'
-
-    schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '19:00'
-      timezone: 'Europe/Warsaw'
-
-    commit-message:
-      prefix: 'deps: '
-
-    open-pull-requests-limit: 5
-
-    groups:
-      golang-ecosystem:
-        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
