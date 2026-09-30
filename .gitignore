@@ -34,6 +34,9 @@ profile.cov
 go.work
 go.work.sum
 
+# MkDocs build output
+site/
+
 
 # ------------------------------------------
 # Local env files
@@ -167,3 +170,4 @@ $RECYCLE.BIN/
 *.pfx
 # Dokumentacja robocza warstwy auth
 AUTH.md
+!docs/Backend/Auth.md

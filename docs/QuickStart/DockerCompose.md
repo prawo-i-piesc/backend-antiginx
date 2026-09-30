@@ -1,134 +1,56 @@
 # 🧩 Quick Start — Docker Compose
-This variant runs **backend-antiginx** as a container service connected to PostgreSQL and RabbitMQ.
 
-
-<br>
-
+The repository's `docker-compose.yml` deploys **only** the backend image and connects it to the **external** Docker network `vpn-net`. It does not create PostgreSQL, RabbitMQ, or an engine worker.
 
 ## ✅ Requirements
-- Docker + Docker Compose (v2)
-- Running PostgreSQL and RabbitMQ instances
-- Existing Docker network `antiginx` (defined as `external`)
 
-**Create the network (one-time setup) if you don't have it:**
-```bash
-docker network create antiginx
+- Docker with Compose v2 and access to `ghcr.io/prawo-i-piesc/backend-antiginx:latest`.
+- Reachable PostgreSQL and RabbitMQ services. Their hostnames in `DATABASE_URL` and `RABBITMQ_URL` must be resolvable **inside** `vpn-net`.
+- An existing network named `vpn-net`, shared with the services (or routed to them). To create a new one when appropriate:
+
+```sh
+docker network create vpn-net
 ```
 
+## 🔐 Configure
 
-<br>
+Create `.env` next to `docker-compose.yml`. Replace the placeholders; obtain a valid `TOTP_ENCRYPTION_KEY` using the command in [Quick Start](./QuickStart.md). There is no checked-in `.env.example`.
 
-
-## 1️⃣ Prepare `.env` File
-Create a `.env` file in the project root directory:
 ```dotenv
-DATABASE_URL=postgres://user:pass@dbhost:5432/antiginx
-RABBITMQ_URL=amqp://user:pass@mqhost:5672/
-JWT_SECRET=super-secret-key
 BACKEND_PORT=4000
+DATABASE_URL=postgres://user:password@dbhost:5432/antiginx?sslmode=disable
+RABBITMQ_URL=amqp://user:password@mqhost:5672/
+JWT_SECRET=replace-with-a-long-random-secret-at-least-32-chars
+PUBLIC_BASE_URL=http://localhost:3000
+TOTP_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
+COOKIE_SECURE=false
+MAIL_TRANSPORT=none
 ```
 
-**📋 About Environment Variables:**
+`PUBLIC_BASE_URL` must be the browser frontend origin. Use `COOKIE_SECURE=true` (the default), TLS and production secrets outside development. For all available variables see [Configuration](../Backend/Configuration.md). Compose maps `${BACKEND_PORT}:4000` and joins `vpn-net`; it will **not** start missing dependencies for you.
 
-- `DATABASE_URL` connects backend to PostgreSQL.
-- `RABBITMQ_URL` connects backend to RabbitMQ and publishes tasks to `scan_queue`.
-- `JWT_SECRET` is required for JWT token signing (`/api/auth/login`, `/api/auth/me`).
-- `BACKEND_PORT` is used for Compose mapping (`${BACKEND_PORT}:4000`).
+## 🚀 Start and check
 
-
-<br>
-
-
-## 2️⃣ Create `docker-compose.yml`
-Create or update the `docker-compose.yml` file in your project root:
-```yaml
-services:
-  backend-antiginx:
-    image: ghcr.io/prawo-i-piesc/backend-antiginx:latest
-    container_name: backend
-    restart: unless-stopped
-
-    ports:
-      - "${BACKEND_PORT}:4000"
-
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - JWT_SECRET=${JWT_SECRET}
-
-    mem_limit: 2048m
-
-    networks:
-      - antiginx
-
-networks:
-  antiginx:
-    external: true
-```
-
-**💡 Customization:**
-
-- Change `ghcr.io/prawo-i-piesc/backend-antiginx:latest` to your own image/tag if needed.
-- Adjust `mem_limit` based on available server resources.
-- If you do not use an external network, replace `external: true` with an internal network setup.
-
-
-<br>
-
-
-## 3️⃣ Start Services
-Start the container in detached mode:
-```bash
+```sh
 docker compose up -d
-```
-
-
-<br>
-
-
-## ✅ Quick Validation
-Check status:
-```bash
 docker compose ps
+curl http://localhost:4000/api/health
+docker compose logs backend-antiginx
 ```
 
-Verify health endpoint:
-```bash
-curl http://localhost:${BACKEND_PORT:-4000}/api/health
-```
+Expect `{"message":"Running..."}` after the API connects to the broker/database and runs migrations. If you choose a different `BACKEND_PORT`, update the `curl` URL accordingly.
 
-View logs:
-```bash
-docker compose logs -f backend-antiginx
-```
-
-
-<br>
-
-
-## 4️⃣ Stop Services
-Stop and remove containers:
-```bash
+```sh
 docker compose down
 ```
 
-
-<br>
-
-
-## 🔄 How It Works
-- Backend starts on port `4000` inside the container.
-- On `POST /api/scans`, a scan record is created in PostgreSQL with `PENDING` status.
-- Backend publishes a task message to RabbitMQ queue `scan_queue`.
-- Workers send results to `POST /api/results`; backend stores them and updates scan status (`RUNNING`/`COMPLETED`).
-
-
-<br>
-
-
 ## 🔧 Troubleshooting
-- **Error: `network antiginx declared as external, but could not be found`** → Create the network: `docker network create antiginx`.
-- **Auth endpoints return 500/401** → Verify `JWT_SECRET` is set and non-empty in `.env`.
-- **No DB/RabbitMQ connection** → Check `DATABASE_URL` and `RABBITMQ_URL`, then restart with `docker compose up -d`.
-- **`localhost` in DB/MQ URLs does not work** → If services run in other containers/hosts, use reachable hostnames (e.g., service name, container DNS, or external host IP).
-- **Container keeps restarting** → Check logs with `docker compose logs -f backend-antiginx` and validate external service reachability.
+
+| Symptom | Check |
+| --- | --- |
+| `network vpn-net declared as external, but could not be found` | Create or supply `vpn-net` before `docker compose up`. |
+| Backend repeatedly restarts | Inspect `docker compose logs backend-antiginx` for missing env values, DB or broker errors. |
+| DB/MQ connection fails | `localhost` inside the backend container is **not** the DB/MQ container; use reachable service hostnames. |
+| Scan remains `PENDING` | Deploy an engine worker on a network that can access RabbitMQ and the backend callback. |
+
+See [Scans and results](../Backend/Scans.md) for the worker integration.

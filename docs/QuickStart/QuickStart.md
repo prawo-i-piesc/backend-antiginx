@@ -1,116 +1,69 @@
 # 🚀 Quick Start
-Welcome to **Backend-Antiginx** — an API that queues security scan tasks in RabbitMQ and stores scan data/results in PostgreSQL.
-Get up and running in minutes. This guide takes you from zero to a working API.
 
+Backend-Antiginx is an HTTP API, not a scanner CLI. It stores scan requests in PostgreSQL, queues work in RabbitMQ, and accepts results from an engine worker.
 
-<br>
+## 🧭 Choose your setup
 
-
-## 🧭 Choose Your Setup
-| Scenario | Best Path | Best For |
-|---|---|---|
-| Quick scan from terminal | [CLI](./CLI.md) | Developers, Pentesters |
-| Scan via pre-built image | [Docker](./Docker.md) | DevOps, CI/CD |
-| Backend with external network/services | [Docker Compose](./DockerCompose.md) | Backend / Queue-based setups |
-
-
-<br>
-
-
-## ✅ Requirements
-- **Go 1.25+** (if running without containers)
-- **Docker 24+** (for containers) 
-- **Docker Compose** (for orchestration)
-- **Available services:** PostgreSQL 14+ and RabbitMQ 3.12+ (configured via environment variables)
-- **Optional:** `jq` — useful for CLI JSON output parsing
-
-
-<br>
-
-
-## 🔐 Environment Variables
-| Variable | Description | Example |
+| Scenario | Guide | Requirements |
 | --- | --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@localhost:5432/antiginx` |
-| `RABBITMQ_URL` | RabbitMQ connection string | `amqp://user:pass@localhost:5672/` |
-| `JWT_SECRET` | Secret key for JWT signing (required for auth endpoints) | `super-secret-key` |
-| `BACKEND_PORT` | Host port mapping in compose | `4000` |
+| Run the API from source | [Local Go setup](./CLI.md) | Go, PostgreSQL, RabbitMQ |
+| Run a single container | [Docker](./Docker.md) | Docker, reachable PostgreSQL and RabbitMQ |
+| Use the repository deployment file | [Docker Compose](./DockerCompose.md) | Docker Compose, external `vpn-net` and running dependencies |
 
-**Save to `.env` in your project root:**
-```env
-DATABASE_URL=postgres://user:pass@localhost:5432/antiginx
-RABBITMQ_URL=amqp://user:pass@localhost:5672/
-JWT_SECRET=super-secret-key
-BACKEND_PORT=4000
+## ✅ Before you start
+
+- Install the Go version declared in [`go.mod`](https://github.com/prawo-i-piesc/backend-antiginx/blob/main/go.mod) for local development (currently Go **1.26.8**), or use Docker.
+- Provide PostgreSQL and RabbitMQ; this repository's Compose file starts **only the backend**, not the database, broker or engine worker.
+- Set `DATABASE_URL`, `RABBITMQ_URL`, `JWT_SECRET`, `PUBLIC_BASE_URL`, and `TOTP_ENCRYPTION_KEY`. The last value must be base64-encoded **32 random bytes**. See [Configuration](../Backend/Configuration.md) for examples and optional settings.
+- Only scan targets you own or are authorized to test. A successful submission means the task was queued, not that a worker is running.
+
+## ⚡ Minimal local run
+
+From the repository root, create `.env` (it is ignored by Git):
+
+```sh
+python3 -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())'
 ```
 
+Place the generated value in `TOTP_ENCRYPTION_KEY` and supply your own database/broker credentials:
 
-<br>
-
-
-## 🛠️ Quick Start Locally (Go)
-
-### Clone the repo:
-```bash
-git clone https://github.com/prawo-i-piesc/backend-antiginx.git
+```dotenv
+DATABASE_URL=postgres://user:password@localhost:5432/antiginx?sslmode=disable
+RABBITMQ_URL=amqp://user:password@localhost:5672/
+JWT_SECRET=replace-with-a-long-random-secret-at-least-32-chars
+PUBLIC_BASE_URL=http://localhost:3000
+TOTP_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
+COOKIE_SECURE=false
+MAIL_TRANSPORT=none
 ```
 
-### Navigate to the backend directory:
-```bash
-cd backend-antiginx
-```
+`PUBLIC_BASE_URL` is the **frontend origin** used for CORS, not the API address. `COOKIE_SECURE=false` is only for HTTP local development; use HTTPS and the default `true` in production.
 
-### Set environment variables:
-```bash
-cp .env.example .env
-```
-
-### Run the application:
-```bash
-go run main.go
-```
-
-### Test the health endpoint:
-```bash
+```sh
+go run .
 curl http://localhost:4000/api/health
 ```
 
+Expected response after dependencies connect and database migrations complete:
 
-<br>
+```json
+{"message":"Running..."}
+```
 
+## 📡 First scan
 
-## 📡 API Overview
-| Method | Path | Description | Requires JWT |
-| --- | --- | --- | --- |
-| GET | `/api/health` | Service status | No |
-| POST | `/api/auth/register` | Register a user | No |
-| POST | `/api/auth/login` | Get authentication token | No |
-| GET | `/api/auth/me` | Get current user profile | Yes |
-| POST | `/api/scans` | Submit a new scan | No |
-| GET | `/api/scans/{id}` | Retrieve scan and results | No |
-| POST | `/api/results` | Submit results from workers | No |
+A free scan does not require an account:
 
-**Auth flow:**
+```sh
+curl -X POST http://localhost:4000/api/freescans \
+  -H 'Content-Type: application/json' \
+  -d '{"target_url":"https://example.com"}'
+```
 
-- Use `POST /api/auth/login` to obtain a token.
-- Use that token in `Authorization: Bearer <token>` for `GET /api/auth/me`.
+The API responds with `202 Accepted` and a `scanId`; query `GET /api/freescans/{scanId}` to see the status and results. The scan needs an **external engine worker** consuming `scan_queue` and reporting to `/api/results`. Account scans instead require a bearer JWT and a nonempty `tests` array; see [Scans and results](../Backend/Scans.md).
 
+## 🎯 What's next?
 
-<br>
-
-
-## 🔧 Troubleshooting
-- **No connection to PostgreSQL or RabbitMQ** — verify `DATABASE_URL` and `RABBITMQ_URL`; test port connectivity from host
-- **401 on `GET /api/auth/me`** — ensure header `Authorization: Bearer <token>` comes from `POST /api/auth/login`
-- **500 on login/token generation** — check that `JWT_SECRET` is set in environment
-- **Port already in use** — change `BACKEND_PORT` in `.env` and re-map when running Docker/Compose
-- **Migration errors** — drop old test tables or verify database user permissions
-
-
-<br>
-
-
-## 🎯 What's Next?
-- Want full parameter docs and all available tests? → [CLI Guide](./CLI.md)
-- Want to run via container image? → [Docker Guide](./Docker.md)
-- Want a worker + queue setup? → [Docker Compose Guide](./DockerCompose.md)
+- [Local API and curl workflow](./CLI.md)
+- [Docker image](./Docker.md) and [Docker Compose](./DockerCompose.md)
+- [Backend architecture](../Backend/README.md), [Authentication](../Backend/Auth.md), and [configuration](../Backend/Configuration.md)

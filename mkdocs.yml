@@ -43,10 +43,12 @@ theme:
     - content.code.copy
     - content.tooltips
 
-plugins: 
+plugins:
   - search
   - git-revision-date-localized:
-      enable_creation_date: true
+      enable_creation_date: false
+      enable_git_follow: false
+      strict: false
       type: timeago
   - include-markdown
 
@@ -69,18 +71,17 @@ markdown_extensions:
       toc_depth: 2-4
 
 nav:
-  - Backend Antiginx: index.md
-  - Quick Start: 
-    - Quick Start: QuickStart/QuickStart.md
-    - CLI: QuickStart/CLI.md
-    - Docker: QuickStart/Docker.md
-    - Docker Compose: QuickStart/DockerCompose.md
-  - Documentation:
-    - Main: main/index.md
-    - API: internal/api/index.md
-    - Handlers: internal/handlers/index.md
-    - Models: internal/models/index.md
-    - Middleware: middleware/index.md
+  - Backend Antiginx: README.md
+  - Quick Start:
+      - Quick Start: QuickStart/QuickStart.md
+      - CLI: QuickStart/CLI.md
+      - Docker: QuickStart/Docker.md
+      - Docker Compose: QuickStart/DockerCompose.md
+  - Backend Documentation:
+      - Overview: Backend/README.md
+      - Configuration: Backend/Configuration.md
+      - Scans and Results: Backend/Scans.md
+      - Authentication and Accounts: Backend/Auth.md
 
 copyright: "Copyright &copy; 2025 Antiginx Team. All rights reserved."
 
