@@ -48,9 +48,3 @@ The provided `docker-compose.yml` runs only `backend-antiginx`, joins an externa
 - Use HTTPS and a reverse proxy for public deployments; `PUBLIC_BASE_URL` is the **frontend** origin, not the API host unless they are deliberately the same.
 - Keep `POST /api/results` behind trusted infrastructure: it has no authentication middleware. The free-scan routes are public and accept target strings without URL or ownership checks beyond a required field.
 - Only authorized security testing is appropriate. Apply network and rate restrictions in your deployment as needed; do not treat the origin check as full authentication (it permits requests without an `Origin` header).
-
-## 📚 Documentation on GitHub Pages
-
-The site's appearance and navigation follow [engine-antiginx](https://prawo-i-piesc.github.io/engine-antiginx/): `mkdocs.yml` uses Material, the same color palettes and plugins. `.github/workflows/docs-build.yml` runs `mkdocs build --strict` on pull requests and on pushes to `main`; only the `main` push uploads the generated `site/` artifact and deploys it to `https://prawo-i-piesc.github.io/backend-antiginx/`.
-
-In the repository's **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. The workflow publishes through the Pages artifact/deploy actions; it does **not** push a `gh-pages` branch. After merging, check the `Documentation` action and the `github-pages` environment. For a local preview install `mkdocs-material`, `mkdocs-git-revision-date-localized-plugin`, and `mkdocs-include-markdown-plugin`, then run `mkdocs serve`; run `mkdocs build --strict` before opening a PR.
