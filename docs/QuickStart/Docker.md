@@ -1,125 +1,48 @@
 # 🐳 Quick Start — Docker
-Run **backend-antiginx** in a container without a local Go setup.
 
-
-<br>
-
+Run the API from the published container image or build it locally. **The image contains only the backend**; PostgreSQL, RabbitMQ, and an engine worker must be provided separately.
 
 ## ✅ Requirements
-- Docker 24+
-- Internet access (to pull the image from GHCR)
-- Reachable PostgreSQL and RabbitMQ instances
-- Prepared environment values: `DATABASE_URL`, `RABBITMQ_URL`, `JWT_SECRET`
 
+Docker, database and broker endpoints reachable **from inside the container**, and the [required configuration](../Backend/Configuration.md). Docker `localhost` points to the container itself; on macOS a service on your host may be reachable as `host.docker.internal`. For containers on a shared network, use container DNS names instead.
 
-<br>
+## 📦 Pull or build
 
-
-## Option A: Pre-built Image from GHCR
-
-### Pull the image
-```bash
+```sh
 docker pull ghcr.io/prawo-i-piesc/backend-antiginx:latest
 ```
 
-### Run the container
-```bash
-docker run -d \
-  --name antiginx-backend \
-  -p 4000:4000 \
-  -e DATABASE_URL="postgres://user:pass@host:5432/antiginx" \
-  -e RABBITMQ_URL="amqp://user:pass@host:5672/" \
-  -e JWT_SECRET="super-secret-key" \
-  ghcr.io/prawo-i-piesc/backend-antiginx:latest
-```
+Or build from the repository root:
 
-
-<br>
-
-
-## Option B: Build Image Locally
-
-### Build the image
-```bash
+```sh
 docker build -t backend-antiginx:local .
 ```
 
-### Run the container
-```bash
-docker run -d \
-  --name antiginx-backend-local \
+In the following example use `backend-antiginx:local` instead of the GHCR tag if you built locally. Create `.env` containing `DATABASE_URL`, `RABBITMQ_URL`, `JWT_SECRET`, `PUBLIC_BASE_URL`, and `TOTP_ENCRYPTION_KEY` (see [Configuration](../Backend/Configuration.md)). Never commit `.env` or put real secrets in a shell history command.
+
+## 🚀 Run
+
+```sh
+docker run -d --name backend-antiginx \
+  --env-file .env \
   -p 4000:4000 \
-  -e DATABASE_URL="postgres://user:pass@host:5432/antiginx" \
-  -e RABBITMQ_URL="amqp://user:pass@host:5672/" \
-  -e JWT_SECRET="super-secret-key" \
-  backend-antiginx:local
-```
+  ghcr.io/prawo-i-piesc/backend-antiginx:latest
 
-
-<br>
-
-
-## ✅ Quick Validation
-Check container status:
-```bash
-docker ps
-```
-
-Check API health:
-```bash
 curl http://localhost:4000/api/health
 ```
 
-View logs:
-```bash
-docker logs -f antiginx-backend
+Expected: `{"message":"Running..."}`. The application listens on port `4000` inside the container. If your DB/MQ is on a Docker network, add `--network <network-name>` and set URLs to the appropriate DNS names; when using HTTP localhost and refresh cookies, set `COOKIE_SECURE=false` **only for development**.
+
+```sh
+docker logs backend-antiginx
+docker stop backend-antiginx
+docker rm backend-antiginx
 ```
-
-
-<br>
-
-
-## 🔍 Useful Diagnostic Commands
-Check if image exists locally:
-```bash
-docker images | grep backend-antiginx
-```
-
-List all containers (running and stopped):
-```bash
-docker ps -a
-```
-
-Inspect logs for a specific container:
-```bash
-docker logs <container_id>
-```
-
-
-<br>
-
-
-## ⏹️ Stop Container
-Stop and remove container:
-```bash
-docker stop antiginx-backend && docker rm antiginx-backend
-```
-
-
-<br>
-
-
-## 🛠️ Notes
-- Backend listens on port `4000` inside the container.
-- The image runs as non-root user (`appuser`).
-- If port `4000` is busy, change mapping (for example: `-p 8080:4000`).
-
-
-<br>
-
 
 ## 🔧 Troubleshooting
-- **Cannot connect to PostgreSQL/RabbitMQ** → Verify host, port, credentials, and network reachability from container.
-- **Auth endpoints return 500/401** → Ensure `JWT_SECRET` is set and non-empty.
-- **Using `localhost` in URLs fails** → If DB/MQ are outside this container, use reachable hostnames/IPs (on macOS often `host.docker.internal`).
-- **Container exits immediately** → Check startup errors with `docker logs antiginx-backend`.
+
+- **Container stops during startup:** inspect `docker logs backend-antiginx`; configuration, PostgreSQL connection, database migrations, and RabbitMQ connection are required before the API starts.
+- **Connection refused to DB/MQ:** check credentials, networking, and hostnames from the container's point of view. `localhost` usually is not the dependency.
+- **No scan results:** an external [engine worker](https://github.com/prawo-i-piesc/engine-antiginx) must consume the queue and call the backend with results.
+
+Next: [Docker Compose](./DockerCompose.md) or [API usage](./CLI.md).

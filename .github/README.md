@@ -1,6 +1,5 @@
 # 🛡️ Backend-AntiGinx
-Production-ready REST API for orchestration of web security scans.
-Backend-AntiGinx receives scan requests, stores scan state/results in PostgreSQL, and pushes scan tasks to RabbitMQ for asynchronous worker processing.
+REST API for orchestration of web security scans. Backend-AntiGinx accepts scan requests, stores scan state/results in PostgreSQL, and pushes scan tasks to RabbitMQ for asynchronous engine workers.
 
 
 <br>
@@ -11,7 +10,7 @@ Backend-AntiGinx is the API layer of the AntiGinx platform, built for reliabilit
 
 - **Queue-first workflow** — scan tasks are published to RabbitMQ queue `scan_queue`
 - **Stateful scan lifecycle** — `PENDING` → `RUNNING` → `COMPLETED`
-- **JWT-based authentication** — register/login/me flow for protected endpoints
+- **Account security** — access JWTs, rotating refresh sessions, MFA, OAuth and passkeys
 - **Structured JSON API** — easy integration with workers, dashboards, and CI/CD pipelines
 - **Container-ready delivery** — prebuilt image on GHCR + Docker Compose support
 
@@ -22,13 +21,13 @@ Backend-AntiGinx is the API layer of the AntiGinx platform, built for reliabilit
 ## 💻 Technologies
 | Technology | Purpose | Details |
 |---|---|---|
-| 🎯 **Go 1.25** | Core language | Fast, compiled, production-oriented |
+| 🎯 **Go 1.26.8** | Core language | Version specified in `go.mod` |
 | 🌐 **Gin** | HTTP framework | Routing + middleware |
 | 🔷 **GORM** | ORM | Model mapping and migrations |
 | 🗄️ **PostgreSQL** | Persistence | Scan metadata and results storage |
 | 🐰 **RabbitMQ** | Task queue | Async scan dispatch to workers |
 | 🐳 **Docker** | Containers | Multi-stage image build |
-| 🧩 **Docker Compose** | Service run mode | Simple deployment with env vars |
+| 🧩 **Docker Compose** | Service run mode | Backend container on external `vpn-net`; dependencies run separately |
 | 📦 **GHCR** | Image registry | Hosted backend images |
 | 📚 **MkDocs** | Documentation | GitHub Pages publishing |
 
@@ -41,8 +40,10 @@ Backend-AntiGinx is the API layer of the AntiGinx platform, built for reliabilit
 backend-antiginx/
 ├── internal/
 │   ├── api/             # Gin router and route groups
-│   ├── handlers/        # Auth and scan handlers
-│   └── models/          # GORM models (Scan, ScanResult, User)
+│   ├── auth/            # JWT, sessions, MFA, OAuth and passkeys
+│   ├── config/          # Environment validation
+│   ├── handlers/        # Auth, scan and admin handlers
+│   └── models/          # GORM models
 ├── middleware/          # JWT auth middleware
 ├── docs/                # MkDocs documentation pages
 ├── main.go              # Application entry point
@@ -62,9 +63,15 @@ backend-antiginx/
 | POST | `/api/auth/register` | Register user | Public |
 | POST | `/api/auth/login` | Login and get JWT | Public |
 | GET | `/api/auth/me` | Current user profile | Bearer JWT |
-| POST | `/api/scans` | Submit a new scan request | Public |
-| GET | `/api/scans/:id` | Retrieve scan with results | Public |
-| POST | `/api/results` | Submit worker result callback | Public |
+| POST | `/api/freescans` | Queue a free scan | Public |
+| GET | `/api/freescans/:id` | Retrieve free scan and results | Public |
+| POST | `/api/scans` | Queue an account scan with selected tests | Bearer JWT |
+| GET | `/api/scans/:id` | Retrieve your account scan and results | Bearer JWT |
+| GET | `/api/utils/tests` | List available test IDs | Bearer JWT |
+| POST | `/api/results` | Receive engine callback (protect externally) | Public |
+
+!!! warning "Deployment security"
+    `/api/results` is unauthenticated in the current router. Restrict it to trusted workers at the network or gateway layer. Free scan details are public by ID; accept only authorized scan targets.
 
 
 <br>
@@ -73,24 +80,24 @@ backend-antiginx/
 ## 📋 Prerequisites
 | Component | Version | Purpose |
 |---|---|---|
-| Go | 1.25+ | Build & run locally |
-| PostgreSQL | 14+ | Scan metadata and results storage |
-| RabbitMQ | 3.12+ | Task queue (optional) |
-| Docker | 24+ | Containerization |
-| Docker Compose | 2.0+ | Orchestration |
+| Go | Version in `go.mod` (currently 1.26.8) | Build & run locally |
+| PostgreSQL | Running instance | Scan metadata and results storage |
+| RabbitMQ | Running instance | Required task queue, even for API startup |
+| Docker / Docker Compose | Optional | Containerized deployment |
+| Engine worker | Separate deployment | Executes scans and posts results |
 
 
 <br>
 
 
 ## 📚 Documentation
-Our documentation is comprehensive and organized into logical sections:
+Read the [published documentation](https://prawo-i-piesc.github.io/backend-antiginx/) or go straight to:
 
-- **[Backend-AntiGinx Documentation](https://prawo-i-piesc.github.io/backend-antiginx/)** — full documentation with API reference, architecture overview, and setup guides.
-- **[Quick Start](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/QuickStart/)** — step-by-step guides for local CLI, Docker, and Docker Compose setups.
-    - [CLI Guide](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/CLI/) — detailed API usage examples with `curl`.
-    - [Docker Guide](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/Docker/) — how to run the backend using Docker.
-    - [Docker Compose Guide](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/DockerCompose/) — orchestrate backend with PostgreSQL and RabbitMQ using Compose.
+- [Quick Start](https://prawo-i-piesc.github.io/backend-antiginx/QuickStart/QuickStart/) — choose local Go, Docker, or Docker Compose.
+- [Backend architecture](https://prawo-i-piesc.github.io/backend-antiginx/Backend/) — startup and scan lifecycle.
+- [Configuration](https://prawo-i-piesc.github.io/backend-antiginx/Backend/Configuration/) — required settings and deployments.
+- [Scans and results API](https://prawo-i-piesc.github.io/backend-antiginx/Backend/Scans/) — worker contracts and scan endpoints.
+- [Authentication](https://prawo-i-piesc.github.io/backend-antiginx/Backend/Auth/) — JWT, MFA, OAuth and passkeys.
 
 
 <br>

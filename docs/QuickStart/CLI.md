@@ -1,259 +1,77 @@
-# 💻 Quick Start — CLI
-This guide shows how to test **backend-antiginx** directly from your terminal using `curl`.
+# 💻 Quick Start — local API and curl
 
-
-<br>
-
+Run the backend from source and call its HTTP API from a terminal. The scanner itself runs in the separate [engine-antiginx](https://github.com/prawo-i-piesc/engine-antiginx) worker; there is no backend scanner CLI.
 
 ## ✅ Requirements
-- Running **backend-antiginx** API (locally or in Docker)
-- PostgreSQL and RabbitMQ reachable by backend
-- Go 1.25+ (for local run without Docker)
-- `curl`
-- Optional: `jq` (for pretty JSON output and token extraction)
 
+Go matching `go.mod` (currently **1.26.8**), a running PostgreSQL instance, RabbitMQ, `curl`, and optionally `jq`. Configure the [required environment variables](../Backend/Configuration.md) in `.env` in the repository root. There is **no `.env.example` in this repository**; create `.env` yourself. Use `MAIL_TRANSPORT=none` for local development without an email provider and `COOKIE_SECURE=false` only for HTTP localhost.
 
-<br>
-
-
-## ⚡ Quick Start
-
-### Set Environment Variables
-```bash
-# from repository root
-cp .env.example .env
+```sh
+go run .
 ```
 
-### Edit `.env` with credentials
-```dotenv
-DATABASE_URL=postgres://user:password@localhost:5432/antiginx
-RABBITMQ_URL=amqp://user:password@localhost:5672/
-JWT_SECRET=super-secret-key
+The server listens on `:4000`. In another terminal:
+
+```sh
+curl http://localhost:4000/api/health
 ```
 
-### Run API
-```bash
-go run main.go
+Expected: `{"message":"Running..."}`. Startup requires working database and broker connections, even for the health check.
+
+## 🔍 Free scan (no login)
+
+```sh
+curl -i -X POST http://localhost:4000/api/freescans \
+  -H 'Content-Type: application/json' \
+  -d '{"target_url":"https://example.com"}'
 ```
 
-### Set API base URL
-```bash
-export BASE_URL="http://localhost:4000/api"
+Expected: `202 Accepted` with `{"scanId":"<uuid>","status":"PENDING"}`. Use the returned UUID:
+
+```sh
+curl http://localhost:4000/api/freescans/<scanId>
 ```
 
-### Test Health Endpoint
-```bash
-curl -s ${BASE_URL}/health
+The response includes `id`, `target_url`, `status`, `created_at`, `started_at`, `completed_at`, and `results`. The API cannot finish the scan by itself: the external engine must consume the RabbitMQ task and report results.
+
+## 🔐 Account scan (JWT)
+
+Register an account with a unique password of **at least 12 characters**:
+
+```sh
+curl -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"full_name":"Example User","email":"user@example.com","password":"a-unique-long-passphrase"}'
 ```
 
-✅ **Expect:** `{"message":"Running..."}`
+Registration returns an access `token` and sets a refresh cookie. You can also log in (this example assumes MFA is not enabled):
 
-
-<br>
-
-
-## 📖 Available API Flow
-| Step | Endpoint | Purpose |
-|---|---|---|
-| `register` | `POST /auth/register` | Create account |
-| `login` | `POST /auth/login` | Get JWT token |
-| `me` | `GET /auth/me` | Validate JWT and fetch current user |
-| `submit scan` | `POST /scans` | Create scan task (`PENDING`) |
-| `get scan` | `GET /scans/{id}` | Read scan details and results |
-| `submit result` | `POST /results` | Worker-style result callback |
-
-**📌 Important Notes:**
-
-- Password for register/login must have at least 8 characters.
-- `testId` in `/results` should be the same UUID returned as `scanId` from `/scans`.
-- `jq` is optional; remove `| jq` from commands if not installed.
-
-
-<br>
-
-
-## 1️⃣ Register User
-```bash
-curl -s -X POST ${BASE_URL}/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "full_name":"Jane Doe",
-    "email":"jane@example.com",
-    "password":"SecurePass123"
-  }'
-```
-✅ **Expect:** `{"message":"User registered successfully"}`
-
-
-<br>
-
-
-## 2️⃣ Login & Save Token
-```bash
-TOKEN=$(curl -s -X POST ${BASE_URL}/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email":"jane@example.com",
-    "password":"SecurePass123"
-  }' | jq -r '.token')
-
-echo "Token: ${TOKEN}"
-```
-✅ **Expect:** JSON with `token` and `expires_in`
-
-
-<br>
-
-
-## 3️⃣ Validate Auth (`/auth/me`)
-```bash
-curl -s ${BASE_URL}/auth/me \
-  -H "Authorization: Bearer ${TOKEN}" | jq
-```
-✅ **Expect:** user `id`, `full_name`, `email`
-
-
-<br>
-
-
-## 4️⃣ Submit a Scan
-```bash
-SCAN_ID=$(curl -s -X POST ${BASE_URL}/scans \
-  -H "Content-Type: application/json" \
-  -d '{"target_url":"https://example.com"}' | jq -r '.scanId')
-
-echo "Scan ID: ${SCAN_ID}"
-```
-✅ **Expect:** `scanId` and `status` (`PENDING`)
-
-
-<br>
-
-
-## 5️⃣ Retrieve Scan
-```bash
-curl -s ${BASE_URL}/scans/${SCAN_ID} | jq
-```
-✅ **Expect:** scan metadata + results array
-
-
-<br>
-
-
-## 6️⃣ Submit Worker Result (Manual Simulation)
-Normally sent by worker, but you can test manually:
-```bash
-curl -s -X POST ${BASE_URL}/results \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target":"https://example.com",
-    "testId":"'"${SCAN_ID}"'",
-    "result":{
-      "Name":"csp-header",
-      "Certainty":90,
-      "ThreatLevel":"Info",
-      "Description":"CSP header present but missing frame-ancestors directive",
-      "Metadata":{"header":"Content-Security-Policy"}
-    }
-  }' | jq
-```
-✅ **Expect:** `{"message":"Result received"}`
-
-
-<br>
-
-
-## 7️⃣ Mark Scan as Completed (Optional)
-In this backend, sending an empty `result.Name` marks scan as completed:
-```bash
-curl -s -X POST ${BASE_URL}/results \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target":"https://example.com",
-    "testId":"'"${SCAN_ID}"'",
-    "result":{
-      "Name":"",
-      "Certainty":0,
-      "ThreatLevel":"Info",
-      "Description":"",
-      "Metadata":{}
-    }
-  }' | jq
-```
-✅ **Expect:** `{"message":"Scan completed"}`
-
-
-<br>
-
-
-## 🧾 Status Codes & Common Headers
-| Status | Meaning | Action |
-| --- | --- | --- |
-| `200 OK` | Request successful | Continue flow |
-| `202 Accepted` | Scan accepted and queued | Poll with `GET /scans/{id}` |
-| `400 Bad Request` | Invalid payload/UUID | Verify JSON and `testId` format |
-| `401 Unauthorized` | Missing/invalid token | Login again and resend header |
-| `404 Not Found` | Scan does not exist | Check `scanId` value |
-| `500 Internal Server Error` | Backend dependency/runtime issue | Check backend logs |
-
-
-<br>
-
-
-| Header | Usage | Required For |
-| --- | --- | --- |
-| `Authorization: Bearer <token>` | JWT authentication | `/auth/me` |
-| `Content-Type: application/json` | JSON body | All POST requests |
-
-
-<br>
-
-
-## 🔁 Full Test Workflow
-```bash
-# 0) Base URL
-export BASE_URL="http://localhost:4000/api"
-
-# 1) Health
-curl -s ${BASE_URL}/health | jq
-
-# 2) Register
-curl -s -X POST ${BASE_URL}/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"full_name":"Test User","email":"test@test.com","password":"TestPass123"}'
-
-# 3) Login
-TOKEN=$(curl -s -X POST ${BASE_URL}/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"TestPass123"}' | jq -r '.token')
-
-# 4) Verify token
-curl -s ${BASE_URL}/auth/me -H "Authorization: Bearer ${TOKEN}" | jq
-
-# 5) Submit scan
-SCAN_ID=$(curl -s -X POST ${BASE_URL}/scans \
-  -H "Content-Type: application/json" \
-  -d '{"target_url":"https://example.com"}' | jq -r '.scanId')
-
-# 6) Submit one result item
-curl -s -X POST ${BASE_URL}/results \
-  -H "Content-Type: application/json" \
-  -d '{"target":"https://example.com","testId":"'"${SCAN_ID}"'","result":{"Name":"https","Certainty":90,"ThreatLevel":"Info","Description":"HTTPS check","Metadata":{}}}' | jq
-
-# 7) Mark completed
-curl -s -X POST ${BASE_URL}/results \
-  -H "Content-Type: application/json" \
-  -d '{"target":"https://example.com","testId":"'"${SCAN_ID}"'","result":{"Name":"","Certainty":0,"ThreatLevel":"Info","Description":"","Metadata":{}}}' | jq
-
-# 8) Get final scan
-curl -s ${BASE_URL}/scans/${SCAN_ID} | jq
+```sh
+curl -X POST http://localhost:4000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com","password":"a-unique-long-passphrase"}'
 ```
 
+Copy the `token` from the JSON response into the bearer header below. If login returns `mfa_required`, finish the [MFA flow](../Backend/Auth.md) before making an authenticated request.
 
-<br>
+```sh
+curl -X POST http://localhost:4000/api/scans \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  -d '{"target_url":"https://example.com","tests":["https","hsts"],"anti_bot_detection":false}'
 
-
-## 🧹 Cleanup
-```bash
-unset TOKEN SCAN_ID BASE_URL
+curl http://localhost:4000/api/scans/<scanId> \
+  -H 'Authorization: Bearer <access_token>'
 ```
+
+`POST /api/scans` returns `202` and a `scanId`; `GET /api/scans/{scanId}` only returns scans owned by the current user. To discover supported test IDs, call `GET /api/utils/tests` with the same bearer header. For all routes and the callback contract, see [Scans and results](../Backend/Scans.md).
+
+## 🔧 Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Server exits at startup | Verify required variables, PostgreSQL and RabbitMQ connectivity, and database migration permissions. |
+| `401` on `/api/scans` | Supply a valid **access** JWT as `Authorization: Bearer <token>`; the refresh cookie is not sufficient. |
+| `400` on premium scan | Supply `target_url` and at least one valid test ID in `tests`. |
+| Scan stays `PENDING` | Ensure the engine worker consumes `scan_queue` and can reach `/api/results`. |
+| Refresh cookie is not retained on local HTTP | Use `COOKIE_SECURE=false` only locally; enable `Secure` with HTTPS in production. |
