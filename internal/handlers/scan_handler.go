@@ -129,11 +129,11 @@ var CategorizedTests = []TestCategoryGroup{
 	},
 	{
 		CategoryName: "Reconnaissance & Server Information",
-		Tests:        []string{"serv-h-a", "sitemap"},
+		Tests:        []string{"serv-h-a", "sitemap", "bot-protection"},
 	},
 	{
 		CategoryName: "Vulnerabilities & Code Analysis",
-		Tests:        []string{"js-obf", "phishing-url"},
+		Tests:        []string{"js-obf", "phishing-url", "dns-reputation", "favicon-origin", "credential-form"},
 	},
 }
 
