@@ -50,9 +50,11 @@ const (
 	CodeCredentialNotFound         Code = "CREDENTIAL_NOT_FOUND"
 	CodePasskeyPasswordRequired    Code = "PASSKEY_PASSWORD_REQUIRED"
 
-	CodeRateLimited Code = "RATE_LIMITED"
-	CodeForbidden   Code = "FORBIDDEN"
-	CodeInternal    Code = "INTERNAL"
+	CodeRateLimited      Code = "RATE_LIMITED"
+	CodeForbidden        Code = "FORBIDDEN"
+	CodeNotFound         Code = "NOT_FOUND"
+	CodeMethodNotAllowed Code = "METHOD_NOT_ALLOWED"
+	CodeInternal         Code = "INTERNAL"
 )
 
 type codeInfo struct {
@@ -95,9 +97,11 @@ var codeTable = map[Code]codeInfo{
 	CodeCredentialNotFound:         {http.StatusNotFound, "Credential not found"},
 	CodePasskeyPasswordRequired:    {http.StatusForbidden, "This account signs in with a password first"},
 
-	CodeRateLimited: {http.StatusTooManyRequests, "Too many requests"},
-	CodeForbidden:   {http.StatusForbidden, "Forbidden"},
-	CodeInternal:    {http.StatusInternalServerError, "Internal server error"},
+	CodeRateLimited:      {http.StatusTooManyRequests, "Too many requests"},
+	CodeForbidden:        {http.StatusForbidden, "Forbidden"},
+	CodeNotFound:         {http.StatusNotFound, "Resource not found"},
+	CodeMethodNotAllowed: {http.StatusMethodNotAllowed, "Method not allowed"},
+	CodeInternal:         {http.StatusInternalServerError, "Internal server error"},
 }
 
 type ErrorResponse struct {

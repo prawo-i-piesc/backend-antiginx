@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -37,6 +38,8 @@ type Config struct {
 	PublicBaseURL string
 
 	CookieSecure bool
+
+	TrustedProxies []string
 
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
@@ -152,6 +155,10 @@ func Load() (*Config, error) {
 		problems = append(problems, err.Error())
 	}
 
+	if cfg.TrustedProxies, err = envProxies("TRUSTED_PROXIES"); err != nil {
+		problems = append(problems, err.Error())
+	}
+
 	if cfg.WebAuthnRPID == "" && cfg.PublicBaseURL != "" {
 		rpID, err := hostWithoutPort(cfg.PublicBaseURL)
 		if err != nil {
@@ -221,6 +228,28 @@ func decodeTOTPKey(raw string) ([]byte, error) {
 		return nil, fmt.Errorf("must decode to %d bytes, got %d", totpEncryptionKeyLen, len(key))
 	}
 	return key, nil
+}
+
+func envProxies(key string) ([]string, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil, nil
+	}
+
+	var proxies []string
+	for _, part := range strings.Split(raw, ",") {
+		entry := strings.TrimSpace(part)
+		if entry == "" {
+			continue
+		}
+		_, prefixErr := netip.ParsePrefix(entry)
+		_, addrErr := netip.ParseAddr(entry)
+		if prefixErr != nil && addrErr != nil {
+			return nil, fmt.Errorf("%s entries must be IP addresses or CIDR ranges, got %q", key, entry)
+		}
+		proxies = append(proxies, entry)
+	}
+	return proxies, nil
 }
 
 func envBool(key string, fallback bool) (bool, error) {

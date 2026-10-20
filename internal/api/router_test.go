@@ -19,15 +19,23 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func testRouter(t *testing.T) *gin.Engine {
-	t.Helper()
-
-	cfg := &config.Config{
+func testConfig() *config.Config {
+	return &config.Config{
 		JWTSecret:      []byte("test-secret-that-is-long-enough-for-hs256"),
 		PublicBaseURL:  frontendOrigin,
 		WebAuthnRPID:   "antiginx.pl",
 		WebAuthnRPName: config.DefaultWebAuthnRPName,
 	}
+}
+
+func testRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	return routerWithConfig(t, testConfig())
+}
+
+func routerWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
+	t.Helper()
+
 	authHandler, err := handlers.NewAuthHandler(nil, cfg)
 	if err != nil {
 		t.Fatalf("NewAuthHandler: %v", err)
@@ -448,5 +456,109 @@ func TestProtectedRoutesRequireAToken(t *testing.T) {
 				t.Errorf("status = %d, want 401", w.Code)
 			}
 		})
+	}
+}
+
+func TestContentSecurityPolicyHasNoWildcards(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+
+	csp := w.Header().Get("Content-Security-Policy")
+	if strings.Contains(csp, "*") || strings.Contains(csp, "unsafe-inline") {
+		t.Errorf("Content-Security-Policy = %q, want no wildcards and no unsafe-inline", csp)
+	}
+	if !strings.Contains(csp, "default-src 'none'") {
+		t.Errorf("Content-Security-Policy = %q, want default-src 'none'", csp)
+	}
+}
+
+func TestStrictTransportSecurityFollowsCookieSecure(t *testing.T) {
+	for _, tc := range []struct {
+		secure bool
+		want   bool
+	}{{secure: true, want: true}, {secure: false, want: false}} {
+		cfg := testConfig()
+		cfg.CookieSecure = tc.secure
+
+		w := httptest.NewRecorder()
+		routerWithConfig(t, cfg).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+
+		if got := w.Header().Get("Strict-Transport-Security") != ""; got != tc.want {
+			t.Errorf("CookieSecure=%v: HSTS present = %v, want %v", tc.secure, got, tc.want)
+		}
+	}
+}
+
+func TestResponsesExposeRetryAfter(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req.Header.Set("Origin", frontendOrigin)
+
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Expose-Headers"); !strings.Contains(got, "Retry-After") {
+		t.Errorf("Access-Control-Expose-Headers = %q, want it to contain Retry-After", got)
+	}
+}
+
+func TestUnknownRouteAndMethodReturnTheErrorContract(t *testing.T) {
+	r := testRouter(t)
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		status int
+		code   string
+	}{
+		{"unknown path", http.MethodGet, "/api/nie-ma-takiej-trasy", http.StatusNotFound, "NOT_FOUND"},
+		{"wrong method", http.MethodPatch, "/api/health", http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, nil))
+
+			if w.Code != tc.status {
+				t.Fatalf("status = %d, want %d", w.Code, tc.status)
+			}
+			if got := w.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
+				t.Errorf("Content-Type = %q, want JSON", got)
+			}
+			if body := w.Body.String(); !strings.Contains(body, tc.code) {
+				t.Errorf("body = %q, want code %s", body, tc.code)
+			}
+		})
+	}
+}
+
+func TestOversizedBodyIsRejected(t *testing.T) {
+	body := `{"email":"a@b.pl","password":"` + strings.Repeat("x", 2<<20) + `"}`
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", frontendOrigin)
+
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestClientIPIgnoresForwardedHeaders(t *testing.T) {
+	r := testRouter(t)
+	r.GET("/test-client-ip", func(c *gin.Context) { c.String(http.StatusOK, c.ClientIP()) })
+
+	req := httptest.NewRequest(http.MethodGet, "/test-client-ip", nil)
+	req.RemoteAddr = "192.0.2.1:4242"
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+	req.Header.Set("X-Real-IP", "203.0.113.9")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Body.String(); got != "192.0.2.1" {
+		t.Errorf("ClientIP = %q, want the connection address 192.0.2.1", got)
 	}
 }

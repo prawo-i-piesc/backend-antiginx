@@ -19,7 +19,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/prawo-i-piesc/backend/internal/api"
@@ -38,7 +45,7 @@ import (
 //  2. Establishes connection to PostgreSQL database
 //  3. Runs database migrations for Scan and ScanResult models
 //  4. Connects to RabbitMQ and declares the scan_queue
-//  5. Initializes HTTP handlers and starts the server on port 8080
+//  5. Initializes HTTP handlers and starts the server on port 4000
 //
 // The function will terminate with a fatal error if any critical
 // initialization step fails (database connection, RabbitMQ connection, etc.)
@@ -159,9 +166,32 @@ func main() {
 	}
 	adminHandler := handlers.NewAdminHandler(db)
 
-	router := api.NewRouter(scanHandler, authHandler, adminHandler, cfg)
+	srv := &http.Server{
+		Addr:              ":4000",
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, cfg),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 
-	if err := router.Run(":4000"); err != nil {
-		log.Fatalf("Could not start server: %v", err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Could not start server: %v", err)
+		}
+	}()
+	log.Println("Serwer nasłuchuje na :4000")
+
+	<-ctx.Done()
+	stop()
+	log.Println("Otrzymano sygnał zamknięcia, domykam serwer...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Serwer nie zamknął się w wyznaczonym czasie: %v", err)
 	}
 }

@@ -5,6 +5,8 @@
 package api
 
 import (
+	"log"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -17,10 +19,17 @@ import (
 
 var quietPaths = []string{"/api/auth/refresh"}
 
+const maxRequestBody = 1 << 20
+
 func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		log.Printf("Router: nieprawidłowe TRUSTED_PROXIES, zostaję przy adresie połączenia: %v", err)
+	}
+	r.HandleMethodNotAllowed = true
+
 	r.Use(
 		gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: quietPaths}),
 		gin.Recovery(),
@@ -30,20 +39,15 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		AllowOrigins:     []string{cfg.PublicBaseURL},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		ExposeHeaders:    []string{"Content-Length", "Retry-After"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
 
-	r.Use(func(c *gin.Context) {
-		c.Header("X-Frame-Options", "DENY")
-		c.Header("Content-Security-Policy", "default-src 'none'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data:; style-src * 'unsafe-inline'; frame-ancestors 'none';")
-		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		c.Header("Referrer-Policy", "no-referrer")
-		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("Permissions-Policy", "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()")
-		c.Next()
-	})
+	r.Use(securityHeaders(cfg.CookieSecure), limitRequestBody(maxRequestBody))
+
+	r.NoRoute(func(c *gin.Context) { httpx.Fail(c, httpx.CodeNotFound) })
+	r.NoMethod(func(c *gin.Context) { httpx.Fail(c, httpx.CodeMethodNotAllowed) })
 
 	public := r.Group("/api")
 	{
@@ -51,14 +55,14 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		public.POST("/results", scanHandler.HandleResultSubmission)
 		public.GET("/freescans/:id", scanHandler.HandleGetScan)
 		public.GET("/health", scanHandler.HandleHealthCheck)
-		public.POST("/auth/register", authHandler.Register)
-		public.POST("/auth/login", authHandler.Login)
 	}
 
-	session := r.Group("/api/auth")
-	session.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	authPublic := r.Group("/api/auth")
+	authPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
 	{
-		session.POST("/refresh", authHandler.HandleRefresh)
+		authPublic.POST("/register", authHandler.Register)
+		authPublic.POST("/login", authHandler.Login)
+		authPublic.POST("/refresh", authHandler.HandleRefresh)
 	}
 
 	sessionProtected := r.Group("/api/auth")
@@ -76,7 +80,6 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
 		protected.GET("/users/widgets", scanHandler.HandleUserDashboardWidgets)
-		//Tutaj karol masz enpointa
 		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
 		protected.PATCH("/utils/profile/name", authHandler.HandleUpdateFullName)
 		protected.PATCH("/utils/profile/email", authHandler.HandleUpdateEmail)
@@ -163,4 +166,27 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	}
 
 	return r
+}
+
+func securityHeaders(httpsOnly bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+		c.Header("Referrer-Policy", "no-referrer")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("Permissions-Policy", "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()")
+		if httpsOnly {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		c.Next()
+	}
+}
+
+func limitRequestBody(limit int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		}
+		c.Next()
+	}
 }

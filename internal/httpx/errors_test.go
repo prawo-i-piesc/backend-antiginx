@@ -45,6 +45,8 @@ var specStatuses = map[Code]int{
 	CodePasskeyPasswordRequired:    http.StatusForbidden,
 	CodeRateLimited:                http.StatusTooManyRequests,
 	CodeForbidden:                  http.StatusForbidden,
+	CodeNotFound:                   http.StatusNotFound,
+	CodeMethodNotAllowed:           http.StatusMethodNotAllowed,
 	CodeInternal:                   http.StatusInternalServerError,
 }
 
