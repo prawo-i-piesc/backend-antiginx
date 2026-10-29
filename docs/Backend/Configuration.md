@@ -34,6 +34,7 @@ Keep both secrets out of source control. Back up the TOTP encryption key: changi
 | `MAIL_TRANSPORT` | `resend` if `RESEND_API_KEY` exists, otherwise `none` | `resend`, `log` or `none`. `log` is for development and logs mail content; `none` does not send mail. |
 | `MAIL_FROM`, `RESEND_API_KEY` | unset | Both required for `MAIL_TRANSPORT=resend`. |
 | `TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of reverse proxies allowed to set `X-Forwarded-For`. While unset, the client IP is the connection address, so forwarded headers cannot spoof per-IP rate limits. Set it (for example `10.42.0.0/16`) once an ingress fronts the API, otherwise every request appears to come from the proxy. |
+| `ENGINE_API_KEYS` | unset | Comma-separated keys accepted in the `X-Engine-Key` header of `POST /api/results`. Every engine replica reads the same secret, so scaling the engine does not touch the backend. To rotate: add the new key, roll the engine, then remove the old key. While unset the callback accepts anyone and a warning is logged at startup. |
 | `GIN_MODE` | `debug` | Read by gin itself. Use `release` on deployments to silence debug output. |
 | `BACKEND_PORT` | no default in Compose | **Compose-only** host-side port mapping (`${BACKEND_PORT}:4000`). The Go server always listens on `:4000`. |
 
@@ -48,6 +49,9 @@ The provided `docker-compose.yml` runs only `backend-antiginx`, joins an externa
 ## 🔒 Deployment notes
 
 - Use HTTPS and a reverse proxy for public deployments; `PUBLIC_BASE_URL` is the **frontend** origin, not the API host unless they are deliberately the same.
-- Keep `POST /api/results` behind trusted infrastructure: it has no authentication middleware. The free-scan routes are public and accept target strings without URL or ownership checks beyond a required field.
-- The HTTP server applies read, write and idle timeouts, caps request bodies at 1 MiB, and shuts down gracefully on `SIGTERM`/`SIGINT` with a 10-second drain, so rolling restarts do not cut live requests.
+- Set `ENGINE_API_KEYS` before exposing the API: without it `POST /api/results` accepts results from anyone. Load the key from a Kubernetes `Secret` (or an env file), never bake it into an image; the backend never logs it.
+- `target_url` must be an `http(s)` URL pointing at a public host. Loopback, private (RFC 1918, ULA), CGNAT, link-local and multicast addresses, single-label names and internal suffixes (`.local`, `.localhost`, `.internal`, `.lan`, `.home.arpa`, `.svc`) are rejected. This does **not** stop a public domain that resolves to a private address — apply an egress `NetworkPolicy` to the engine pods for that. Free scans are additionally limited to 10 per client IP per hour.
+- The HTTP server applies read, write and idle timeouts, caps request headers at 64 KiB and bodies at 1 MiB, and shuts down gracefully on `SIGTERM`/`SIGINT` with a 10-second drain, so rolling restarts do not cut live requests.
+- `GET /healthz` (liveness, no dependencies) and `GET /readyz` (pings PostgreSQL with a 2-second timeout and checks the RabbitMQ channel; `503` with `{"db":"down"}` or `{"rabbitmq":"down"}` when either fails) serve container probes. They sit outside `/api`, skip CORS and are not logged. See [Kubernetes](../QuickStart/Kubernetes.md).
+- The backend does not reconnect to RabbitMQ after the connection drops: `/readyz` then stays `503` and the pod receives no traffic until it is restarted.
 - Only authorized security testing is appropriate. Apply network and rate restrictions in your deployment as needed; do not treat the origin check as full authentication (it permits requests without an `Origin` header).

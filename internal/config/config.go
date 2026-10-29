@@ -41,6 +41,8 @@ type Config struct {
 
 	TrustedProxies []string
 
+	EngineAPIKeys []string
+
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 
@@ -159,6 +161,11 @@ func Load() (*Config, error) {
 		problems = append(problems, err.Error())
 	}
 
+	cfg.EngineAPIKeys = envList("ENGINE_API_KEYS")
+	if len(cfg.EngineAPIKeys) == 0 {
+		log.Println("Ostrzeżenie: ENGINE_API_KEYS jest puste, POST /api/results przyjmuje wyniki od każdego")
+	}
+
 	if cfg.WebAuthnRPID == "" && cfg.PublicBaseURL != "" {
 		rpID, err := hostWithoutPort(cfg.PublicBaseURL)
 		if err != nil {
@@ -250,6 +257,16 @@ func envProxies(key string) ([]string, error) {
 		proxies = append(proxies, entry)
 	}
 	return proxies, nil
+}
+
+func envList(key string) []string {
+	var values []string
+	for _, part := range strings.Split(os.Getenv(key), ",") {
+		if value := strings.TrimSpace(part); value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func envBool(key string, fallback bool) (bool, error) {

@@ -64,7 +64,13 @@ func (h *AuthHandler) HandleDeleteAccount(c *gin.Context) {
 }
 
 func (h *AuthHandler) deleteAccount(userID uuid.UUID) error {
-	return h.db.Transaction(func(tx *gorm.DB) error {
+	return deleteUserCascade(h.db, userID)
+}
+
+// deleteUserCascade usuwa konto razem ze wszystkim, co do niego należy. Tej
+// samej kaskady używa samodzielne usunięcie konta i operacja administratora.
+func deleteUserCascade(db *gorm.DB, userID uuid.UUID) error {
+	return db.Transaction(func(tx *gorm.DB) error {
 		var scanIDs []uuid.UUID
 		if err := tx.Model(&models.PremiumScan{}).
 			Where("user_id = ?", userID).
@@ -81,17 +87,17 @@ func (h *AuthHandler) deleteAccount(userID uuid.UUID) error {
 			}
 		}
 
-		if err := tx.Where("user_id = ?", userID).Delete(&models.Session{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("user_id = ?", userID).Delete(&models.RecoveryCode{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("user_id = ?", userID).Delete(&models.OAuthAccount{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("user_id = ?", userID).Delete(&models.WebAuthnCredential{}).Error; err != nil {
-			return err
+		for _, owned := range []any{
+			&models.Session{},
+			&models.RecoveryCode{},
+			&models.OAuthAccount{},
+			&models.WebAuthnCredential{},
+			&models.EmailVerificationToken{},
+			&models.PasswordResetToken{},
+		} {
+			if err := tx.Where("user_id = ?", userID).Delete(owned).Error; err != nil {
+				return err
+			}
 		}
 
 		return tx.Where("id = ?", userID).Delete(&models.User{}).Error

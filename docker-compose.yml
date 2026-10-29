@@ -14,6 +14,7 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       - COOKIE_SECURE=${COOKIE_SECURE:-true}
       - TRUSTED_PROXIES=${TRUSTED_PROXIES:-}
+      - ENGINE_API_KEYS=${ENGINE_API_KEYS:-}
       - GIN_MODE=${GIN_MODE:-release}
       - ACCESS_TOKEN_TTL=${ACCESS_TOKEN_TTL:-}
       - REFRESH_TOKEN_TTL=${REFRESH_TOKEN_TTL:-}
@@ -27,6 +28,13 @@ services:
       - MAIL_TRANSPORT=${MAIL_TRANSPORT:-}
       - MAIL_FROM=${MAIL_FROM:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4000/readyz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
     networks:
       - vpn-net

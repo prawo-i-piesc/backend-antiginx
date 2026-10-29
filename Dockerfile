@@ -75,4 +75,9 @@ USER ${USERNAME}
 
 EXPOSE 4000
 
+# /readyz pinguje bazę i sprawdza kanał RabbitMQ; wget pochodzi z busyboxa.
+# Kubernetes tę instrukcję ignoruje i korzysta z własnych sond.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:4000/readyz || exit 1
+
 CMD ["/app/backend"]

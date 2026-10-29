@@ -6,7 +6,9 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 
 | Method | Path | Access | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | Public | `200` with `{"message":"Running..."}`. |
+| `GET` | `/healthz` | Public | Liveness probe, `200` with `{"status":"ok"}`. No dependencies are checked. |
+| `GET` | `/readyz` | Public | Readiness probe, `200` with `{"db":"up","rabbitmq":"up"}` or `503` when a dependency is down. |
+| `GET` | `/api/health` | Public | Kept for compatibility: `200` with `{"message":"Running..."}`, no dependencies checked. |
 | `POST` | `/api/freescans` | Public | Start a scan with all configured test IDs. |
 | `GET` | `/api/freescans/:id` | Public | Fetch a free scan with results by UUID. |
 | `POST` | `/api/scans` | Bearer access JWT | Start an account scan with selected tests. |
@@ -14,9 +16,9 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `GET` | `/api/users/scans` | Bearer access JWT | List the current user's premium scans with results. |
 | `GET` | `/api/users/widgets` | Bearer access JWT | Counts (`total_scans`, `detected_threats`, `safe_sites`) and up to four `recent_scans`. |
 | `GET` | `/api/utils/tests` | Bearer access JWT | Grouped test IDs available to premium scans. |
-| `POST` | `/api/results` | **Public** (intended for worker) | Store an engine result, execution message, or scan completion. |
+| `POST` | `/api/results` | `X-Engine-Key` (when `ENGINE_API_KEYS` is set) | Store an engine result, execution message, or scan completion. |
 
-`/api/admin/health`, `/api/admin/database?table=users|scans|premium_scans` and `/api/admin/widgets` require an **admin** JWT; see [Authentication](./Auth.md).
+Admin routes (`/api/admin/*`) require an **admin** JWT; see [Authentication](./Auth.md#admin-operations).
 
 ## ⚡ Submit a free scan
 
@@ -27,7 +29,7 @@ Content-Type: application/json
 {"target_url":"https://example.com"}
 ```
 
-The request requires a nonempty `target_url`. The backend persists a free scan as `PENDING` and publishes a task for **all** IDs in its available tests list. Successful response: `202 Accepted`.
+The request requires a `target_url` pointing at a public `http(s)` host (see [Errors and limitations](#errors-and-limitations)); each client IP may start 10 free scans per hour, after which the API returns `429 RATE_LIMITED` with `Retry-After`. The backend persists a free scan as `PENDING` and publishes a task for **all** IDs in its available tests list. Successful response: `202 Accepted`.
 
 ```json
 {"scanId":"<uuid>","status":"PENDING"}
@@ -45,7 +47,7 @@ Content-Type: application/json
 {"target_url":"https://example.com","tests":["https","hsts"],"anti_bot_detection":true}
 ```
 
-`target_url` and a nonempty `tests` array are required. Optional `anti_bot_detection` appends the `--antiBotDetection` engine parameter. The optional `authorized_tester` flag is accepted by the request struct but **is not used** by this handler; it does not grant access or confirm target authorization. Unknown test IDs are silently discarded if at least one valid ID remains; if none remain, the API returns `400` (`No valid tests provided`). Success returns the same `202` `scanId`/`status` shape as a free scan.
+`target_url` (same rules as free scans, no rate limit) and a nonempty `tests` array are required. Optional `anti_bot_detection` appends the `--antiBotDetection` engine parameter. Unknown test IDs are silently discarded if at least one valid ID remains; if none remain, the API returns `400 NO_VALID_TESTS`. Success returns the same `202` `scanId`/`status` shape as a free scan.
 
 Supported test IDs (also returned, grouped, by `GET /api/utils/tests`):
 
@@ -54,14 +56,14 @@ Supported test IDs (also returned, grouped, by `GET /api/utils/tests`):
 | SSL/TLS & Encryption | `https`, `hsts`, `ssl-cert` |
 | Security Headers | `csp`, `xframe`, `permissions-policy`, `x-content-type-options`, `referrer-policy`, `cross-origin-x` |
 | Privacy & Session Management | `cookie-sec` |
-| Reconnaissance & Server Information | `serv-h-a`, `sitemap` |
-| Vulnerabilities & Code Analysis | `js-obf`, `phishing-url` |
+| Reconnaissance & Server Information | `serv-h-a`, `sitemap`, `bot-protection` |
+| Vulnerabilities & Code Analysis | `js-obf`, `phishing-url`, `dns-reputation`, `favicon-origin`, `credential-form` |
 
 Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different user receives `404`. `GET /api/users/scans` returns that user's scan list, while `GET /api/users/widgets` returns dashboard aggregates.
 
 ## 🐰 Worker task
 
-The backend publishes persistent JSON to `scan_queue`. Free scans route through `main_exchange` using `scan_key`; premium scans publish through the default exchange to `scan_queue`. Example task:
+The backend publishes persistent JSON through `main_exchange` with routing key `scan_key`, which delivers it to `scan_queue`. Both free and premium scans take this path, so both go through the `retry_exchange`/`wait_queue` retry topology. If the broker refuses the message the scan is marked `FAILED` and the API returns `503 QUEUE_UNAVAILABLE`. Example task:
 
 ```json
 {
@@ -77,7 +79,15 @@ Premium tasks can additionally contain `{"Name":"--antiBotDetection","Arguments"
 
 ## 🔄 Result callback contract
 
-`POST /api/results` binds `AsyncResultRequest`, **not** the separate `ResultSubmissionRequest` type declared in the same Go file. `testId` is the scan UUID received as `scanId`; `result` uses the engine's capitalized property names:
+`POST /api/results` binds `AsyncResultRequest`. When `ENGINE_API_KEYS` is set, every call must carry one of the keys:
+
+```http
+POST /api/results
+X-Engine-Key: <one of ENGINE_API_KEYS>
+Content-Type: application/json
+```
+
+A missing or wrong key returns `403 FORBIDDEN`; the rejected key is never logged. The route has no rate limit, so any number of engine replicas can share one key. `testId` is the scan UUID received as `scanId`; `result` uses the engine's capitalized property names:
 
 ```json
 {
@@ -85,7 +95,6 @@ Premium tasks can additionally contain `{"Name":"--antiBotDetection","Arguments"
   "testId": "<scanId>",
   "result": {
     "Name": "https",
-    "Certainty": 90,
     "ThreatLevel": "Info",
     "Metadata": {"source": "worker"},
     "Description": "HTTPS is enabled"
@@ -96,11 +105,11 @@ Premium tasks can additionally contain `{"Name":"--antiBotDetection","Arguments"
 }
 ```
 
-A named result is saved and changes `PENDING` to `RUNNING`. `ThreatLevel` values `None` or `Info` produce `passed: true`; others produce `false`. A callback with `result.Name` empty normally marks the scan `COMPLETED`, regardless of `endFlag`. If `endFlag` is false and `resultType` is `0` (`Message`), it instead records an execution/crash message and moves the scan to `RUNNING`. `resultType` `1` represents `Success`. Do not assume the callback validates worker identity or target ownership: **there is no auth middleware on `/api/results`**.
+A named result is saved and changes `PENDING` to `RUNNING`. `ThreatLevel` values `None` or `Info` produce `passed: true`; others produce `false`. A callback with `result.Name` empty normally marks the scan `COMPLETED`, regardless of `endFlag`. If `endFlag` is false and `resultType` is `0` (`Message`), it instead records an execution/crash message and moves the scan to `RUNNING`. `resultType` `1` represents `Success`. An unknown scan returns `404 SCAN_NOT_FOUND`; a `testId` that is not a UUID returns `400 VALIDATION_FAILED`. The key proves the caller is *an* engine, not which scan it was given: any key holder can write to any scan.
 
 ## ⚠️ Errors and limitations
 
-- Malformed scan UUIDs produce `400`; missing scans produce `404`; malformed request JSON or absent required scan fields produce `400`.
-- The scan handlers only require a nonempty target string; they do **not** verify target ownership or URL format. Restrict submissions to authorized testing in production.
-- Queue publishing failures return `500` after the scan record was created; status may remain `PENDING`. `202` means accepted/queued, **not** completed.
+- Every error uses the shared `{"error","code","fields"}` shape. Malformed scan UUIDs produce `400 VALIDATION_FAILED` with `fields.id = "invalid"`; missing scans produce `404 SCAN_NOT_FOUND`; malformed JSON or absent required fields produce `400 VALIDATION_FAILED`.
+- `target_url` must use `http` or `https`, carry no credentials and name a public host. Rejected values return `400 VALIDATION_FAILED` with `fields.target_url` set to `invalid` (not a usable URL) or `not_public` (loopback, private, CGNAT, link-local or multicast address, single-label name, or an internal suffix such as `.local`, `.internal`, `.svc`). The check does not resolve DNS, so it cannot stop a public name pointing at a private address; that belongs in the engine's egress policy. Target ownership is not verified: restrict submissions to authorized testing.
+- Queue publishing failures return `503 QUEUE_UNAVAILABLE` and mark the scan `FAILED`. `202` means accepted/queued, **not** completed.
 - Free scan data is publicly retrievable by its UUID. Keep sensitive targets out of public scans.

@@ -30,6 +30,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/prawo-i-piesc/backend/internal/api"
+	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
@@ -37,6 +38,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+var errBrokerClosed = errors.New("kanał RabbitMQ jest zamknięty")
 
 // main initializes and starts the backend-antiginx API server.
 //
@@ -164,11 +167,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("Nie udało się zainicjalizować obsługi uwierzytelniania: %v", err)
 	}
-	adminHandler := handlers.NewAdminHandler(db)
+	adminHandler := handlers.NewAdminHandler(db, auth.NewSessionService(db, cfg.RefreshTokenTTL))
+
+	probes := []api.Probe{
+		{Name: "db", Check: sqlDB.PingContext},
+		{Name: "rabbitmq", Check: func(context.Context) error {
+			if ch.IsClosed() {
+				return errBrokerClosed
+			}
+			return nil
+		}},
+	}
 
 	srv := &http.Server{
 		Addr:              ":4000",
-		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, cfg),
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, cfg, probes),
+		MaxHeaderBytes:    64 << 10,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

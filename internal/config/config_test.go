@@ -9,7 +9,7 @@ import (
 var allKeys = []string{
 	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL",
 	"COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL", "TOTP_ENCRYPTION_KEY",
-	"TRUSTED_PROXIES",
+	"TRUSTED_PROXIES", "ENGINE_API_KEYS",
 	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
 	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
 	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
@@ -453,4 +453,32 @@ func TestTrustedProxies(t *testing.T) {
 			t.Errorf("TrustedProxies = %v, want %v", cfg.TrustedProxies, want)
 		}
 	})
+}
+
+func TestLoadEngineAPIKeys(t *testing.T) {
+	env := validEnv()
+	env["ENGINE_API_KEYS"] = " nowy-klucz , ,stary-klucz"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	want := []string{"nowy-klucz", "stary-klucz"}
+	if strings.Join(cfg.EngineAPIKeys, "|") != strings.Join(want, "|") {
+		t.Errorf("EngineAPIKeys = %q, want %q", cfg.EngineAPIKeys, want)
+	}
+}
+
+func TestLoadWithoutEngineAPIKeysKeepsTheGateOpen(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.EngineAPIKeys) != 0 {
+		t.Errorf("EngineAPIKeys = %q, want empty", cfg.EngineAPIKeys)
+	}
 }

@@ -27,7 +27,7 @@ func testDB(t *testing.T) *gorm.DB {
 		&models.User{}, &models.Session{}, &models.RecoveryCode{},
 		&models.OAuthAccount{}, &models.WebAuthnCredential{},
 		&models.EmailVerificationToken{}, &models.PasswordResetToken{},
-		&models.PremiumScan{}, &models.ScanResult{},
+		&models.Scan{}, &models.PremiumScan{}, &models.ScanResult{},
 	); err != nil {
 		t.Fatalf("migracja bazy testowej: %v", err)
 	}
@@ -64,6 +64,14 @@ func seedAccount(t *testing.T, db *gorm.DB, email string) uuid.UUID {
 		&models.WebAuthnCredential{
 			ID: newID(t), UserID: userID,
 			CredentialID: []byte(email + "-credential"), PublicKey: []byte("key"), Name: "Passkey",
+		},
+		&models.EmailVerificationToken{
+			ID: newID(t), UserID: userID, Email: email,
+			TokenHash: []byte(email + "-verify"), ExpiresAt: time.Now().Add(time.Hour),
+		},
+		&models.PasswordResetToken{
+			ID: newID(t), UserID: userID,
+			TokenHash: []byte(email + "-reset"), ExpiresAt: time.Now().Add(time.Hour),
 		},
 		&models.PremiumScan{ID: scanID, UserID: userID, TargetURL: "https://example.com"},
 		&models.ScanResult{ScanID: scanID, TestName: "test", Severity: "low"},
@@ -105,10 +113,13 @@ func TestDeleteAccountRemovesEverythingOwnedByTheUser(t *testing.T) {
 	}
 
 	for name, model := range map[string]any{
-		"sesje":             &models.Session{},
-		"kody odzyskiwania": &models.RecoveryCode{},
-		"konta OAuth":       &models.OAuthAccount{},
-		"skany premium":     &models.PremiumScan{},
+		"sesje":               &models.Session{},
+		"kody odzyskiwania":   &models.RecoveryCode{},
+		"konta OAuth":         &models.OAuthAccount{},
+		"passkeye":            &models.WebAuthnCredential{},
+		"tokeny weryfikacji":  &models.EmailVerificationToken{},
+		"tokeny resetu hasła": &models.PasswordResetToken{},
+		"skany premium":       &models.PremiumScan{},
 	} {
 		if got := countFor(t, db, model, userID); got != 0 {
 			t.Errorf("po usunięciu konta zostało %d wierszy w tabeli: %s", got, name)

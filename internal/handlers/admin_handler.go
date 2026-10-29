@@ -1,17 +1,21 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
 )
 
 type AdminHandler struct {
-	db *gorm.DB
+	db       *gorm.DB
+	sessions *auth.SessionService
 }
 
 type DashboardScan struct {
@@ -22,45 +26,49 @@ type DashboardScan struct {
 	Type      string    `json:"type"` // "free" lub "premium"
 }
 
-func NewAdminHandler(db *gorm.DB) *AdminHandler {
+func NewAdminHandler(db *gorm.DB, sessions *auth.SessionService) *AdminHandler {
 	return &AdminHandler{
-		db: db,
+		db:       db,
+		sessions: sessions,
 	}
 }
 
+// HandleGetDatabaseInfo zrzuca całą tabelę bez stronicowania. Zostaje tylko do
+// czasu, aż panel admina przejdzie na /api/admin/users i /api/admin/scans.
+//
+// Deprecated: użyj GET /api/admin/users i GET /api/admin/scans.
 func (h *AdminHandler) HandleGetDatabaseInfo(c *gin.Context) {
-	table := c.Query("table")
+	c.Header("Deprecation", "true")
 
-	switch table {
+	var (
+		rows any
+		err  error
+	)
+
+	switch c.Query("table") {
 	case "users":
 		var users []models.User
-		if err := h.db.Find(&users).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Błąd podczas pobierania użytkowników z bazy danych"})
-			return
-		}
-		c.JSON(http.StatusOK, users)
-
+		err = h.db.Find(&users).Error
+		rows = users
 	case "scans":
 		var scans []models.Scan
-		if err := h.db.Preload("Results").Find(&scans).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Błąd podczas pobierania darmowych skanów"})
-			return
-		}
-		c.JSON(http.StatusOK, scans)
-
+		err = h.db.Preload("Results").Find(&scans).Error
+		rows = scans
 	case "premium_scans":
 		var premiumScans []models.PremiumScan
-		if err := h.db.Preload("Results").Find(&premiumScans).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Błąd podczas pobierania skanów premium"})
-			return
-		}
-		c.JSON(http.StatusOK, premiumScans)
-
+		err = h.db.Preload("Results").Find(&premiumScans).Error
+		rows = premiumScans
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Nie podano prawidłowej nazwy tabeli. Dostępne opcje to: users, scans, premium_scans",
-		})
+		httpx.FailWithFields(c, httpx.CodeValidationFailed, map[string]string{"table": "oneof:users scans premium_scans"})
+		return
 	}
+
+	if err != nil {
+		log.Printf("AdminDatabase: nie udało się pobrać tabeli %q: %v", c.Query("table"), err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+	c.JSON(http.StatusOK, rows)
 }
 
 func (h *AdminHandler) HandleGetDashboardWidgets(c *gin.Context) {
@@ -78,10 +86,10 @@ func (h *AdminHandler) HandleGetDashboardWidgets(c *gin.Context) {
 	h.db.Model(&models.ScanResult{}).Where("passed = ?", false).Count(&detectedThreats)
 
 	var recentFree []models.Scan
-	h.db.Where("status != ?", "PENDING").Order("created_at desc").Limit(4).Find(&recentFree)
+	h.db.Where("status != ?", models.ScanStatusPending).Order("created_at desc").Limit(4).Find(&recentFree)
 
 	var recentPremium []models.PremiumScan
-	h.db.Where("status != ?", "PENDING").Order("created_at desc").Limit(4).Find(&recentPremium)
+	h.db.Where("status != ?", models.ScanStatusPending).Order("created_at desc").Limit(4).Find(&recentPremium)
 
 	var combinedScans []DashboardScan
 	for _, s := range recentFree {

@@ -17,11 +17,11 @@ import (
 	"github.com/prawo-i-piesc/backend/middleware"
 )
 
-var quietPaths = []string{"/api/auth/refresh"}
+var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
 const maxRequestBody = 1 << 20
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config, probes []Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
@@ -34,6 +34,12 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: quietPaths}),
 		gin.Recovery(),
 	)
+
+	// Sondy rejestrujemy przed CORS i resztą middleware'u: gin składa łańcuch
+	// handlerów w chwili rejestracji trasy, więc to, co dochodzi przez Use
+	// niżej, ich nie dotyczy. Kubelet nie wysyła Origin i nie potrzebuje CSP.
+	r.GET("/healthz", healthz)
+	r.GET("/readyz", readyz(probes))
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.PublicBaseURL},
@@ -52,7 +58,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	public := r.Group("/api")
 	{
 		public.POST("/freescans", scanHandler.HandleScanSubmission)
-		public.POST("/results", scanHandler.HandleResultSubmission)
+		public.POST("/results", middleware.RequireEngineKey(cfg.EngineAPIKeys), scanHandler.HandleResultSubmission)
 		public.GET("/freescans/:id", scanHandler.HandleGetScan)
 		public.GET("/health", scanHandler.HandleHealthCheck)
 	}
@@ -157,12 +163,20 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{
-		admin.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
-		admin.GET("/database", adminHandler.HandleGetDatabaseInfo)
-
 		admin.GET("/widgets", adminHandler.HandleGetDashboardWidgets)
+
+		admin.GET("/users", adminHandler.HandleListUsers)
+		admin.GET("/users/:id", adminHandler.HandleGetUser)
+		admin.PATCH("/users/:id/role", adminHandler.HandleSetUserRole)
+		admin.POST("/users/:id/logout", adminHandler.HandleLogoutUser)
+		admin.DELETE("/users/:id", adminHandler.HandleDeleteUser)
+
+		admin.GET("/scans", adminHandler.HandleListScans)
+		admin.DELETE("/scans/:id", adminHandler.HandleDeleteScan)
+
+		// Deprecated: zrzut całej tabeli, do usunięcia po przejściu panelu
+		// admina na /users i /scans.
+		admin.GET("/database", adminHandler.HandleGetDatabaseInfo)
 	}
 
 	return r

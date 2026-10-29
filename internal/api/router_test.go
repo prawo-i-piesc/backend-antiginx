@@ -1,15 +1,25 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/internal/models"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const frontendOrigin = "https://antiginx.pl"
@@ -35,6 +45,11 @@ func testRouter(t *testing.T) *gin.Engine {
 
 func routerWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 	t.Helper()
+	return routerWithProbes(t, cfg, nil)
+}
+
+func routerWithProbes(t *testing.T, cfg *config.Config, probes []Probe) *gin.Engine {
+	t.Helper()
 
 	authHandler, err := handlers.NewAuthHandler(nil, cfg)
 	if err != nil {
@@ -44,8 +59,9 @@ func routerWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 	return NewRouter(
 		handlers.NewScanHandler(nil, nil),
 		authHandler,
-		handlers.NewAdminHandler(nil),
+		handlers.NewAdminHandler(nil, nil),
 		cfg,
+		probes,
 	)
 }
 
@@ -560,5 +576,216 @@ func TestClientIPIgnoresForwardedHeaders(t *testing.T) {
 
 	if got := w.Body.String(); got != "192.0.2.1" {
 		t.Errorf("ClientIP = %q, want the connection address 192.0.2.1", got)
+	}
+}
+
+func TestHealthzHasNoDependencies(t *testing.T) {
+	failing := []Probe{{Name: "db", Check: func(context.Context) error { return errors.New("down") }}}
+
+	w := httptest.NewRecorder()
+	routerWithProbes(t, testConfig(), failing).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 — liveness nie może zależeć od bazy", w.Code)
+	}
+}
+
+func TestReadyzReportsEachDependency(t *testing.T) {
+	probes := []Probe{
+		{Name: "db", Check: func(context.Context) error { return errors.New("connection refused") }},
+		{Name: "rabbitmq", Check: func(context.Context) error { return nil }},
+	}
+
+	w := httptest.NewRecorder()
+	routerWithProbes(t, testConfig(), probes).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", w.Code)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("odpowiedź nie jest JSON-em: %v", err)
+	}
+	if body["db"] != "down" || body["rabbitmq"] != "up" {
+		t.Errorf("body = %v, want db=down rabbitmq=up", body)
+	}
+	if strings.Contains(w.Body.String(), "connection refused") {
+		t.Errorf("odpowiedź ujawnia szczegóły błędu: %s", w.Body.String())
+	}
+}
+
+func TestReadyzTimesOutAHangingProbe(t *testing.T) {
+	probes := []Probe{{Name: "db", Check: func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}}}
+
+	start := time.Now()
+	w := httptest.NewRecorder()
+	routerWithProbes(t, testConfig(), probes).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", w.Code)
+	}
+	if elapsed := time.Since(start); elapsed > probeTimeout+time.Second {
+		t.Errorf("sonda trwała %s, timeout to %s", elapsed, probeTimeout)
+	}
+}
+
+func TestReadyzIsReadyWhenAllProbesPass(t *testing.T) {
+	probes := []Probe{{Name: "db", Check: func(context.Context) error { return nil }}}
+
+	w := httptest.NewRecorder()
+	routerWithProbes(t, testConfig(), probes).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestProbesIgnoreCORS(t *testing.T) {
+	r := routerWithProbes(t, testConfig(), nil)
+
+	for _, path := range []string{"/healthz", "/readyz"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("Origin", "https://attacker.invalid")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("status = %d, want 200 — CORS nie powinien dotyczyć sond", w.Code)
+			}
+		})
+	}
+}
+
+func TestAdminHealthIsGone(t *testing.T) {
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/admin/health", nil))
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+var adminRoutes = []struct {
+	method string
+	path   string
+}{
+	{http.MethodGet, "/api/admin/users"},
+	{http.MethodGet, "/api/admin/users/" + uuid.NewString()},
+	{http.MethodPatch, "/api/admin/users/" + uuid.NewString() + "/role"},
+	{http.MethodPost, "/api/admin/users/" + uuid.NewString() + "/logout"},
+	{http.MethodDelete, "/api/admin/users/" + uuid.NewString()},
+	{http.MethodGet, "/api/admin/scans"},
+	{http.MethodDelete, "/api/admin/scans/" + uuid.NewString()},
+	{http.MethodGet, "/api/admin/database?table=users"},
+	{http.MethodGet, "/api/admin/widgets"},
+}
+
+func TestAdminRoutesRequireAToken(t *testing.T) {
+	r := testRouter(t)
+
+	for _, route := range adminRoutes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(route.method, route.path, nil))
+
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want 401", w.Code)
+			}
+		})
+	}
+}
+
+func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
+	cfg := testConfig()
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "test.db")), &gorm.Config{Logger: logger.Discard})
+	if err != nil {
+		t.Fatalf("baza testowa: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		t.Fatalf("migracja: %v", err)
+	}
+
+	userID := uuid.New()
+	if err := db.Create(&models.User{ID: userID, Email: "jan@example.com", Role: models.UserRoleUser}).Error; err != nil {
+		t.Fatalf("zasianie konta: %v", err)
+	}
+
+	authHandler, err := handlers.NewAuthHandler(db, cfg)
+	if err != nil {
+		t.Fatalf("NewAuthHandler: %v", err)
+	}
+	r := NewRouter(handlers.NewScanHandler(nil, db), authHandler, handlers.NewAdminHandler(db, nil), cfg, nil)
+
+	// Rola w tokenie kłamie: RequireAdmin ma patrzeć do bazy, nie w claim.
+	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleAdmin, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+
+	for _, route := range adminRoutes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			req := httptest.NewRequest(route.method, route.path, nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want 403", w.Code)
+			}
+		})
+	}
+}
+
+func TestResultsRequireTheEngineKey(t *testing.T) {
+	cfg := testConfig()
+	cfg.EngineAPIKeys = []string{"klucz-silnika"}
+	r := routerWithConfig(t, cfg)
+
+	for _, tc := range []struct {
+		key  string
+		want int
+	}{
+		{"", http.StatusForbidden},
+		{"zly-klucz", http.StatusForbidden},
+		// Poprawny klucz przechodzi bramkę; niepoprawne testId zatrzymuje
+		// żądanie dopiero w handlerze, zanim sięgnie po bazę.
+		{"klucz-silnika", http.StatusBadRequest},
+	} {
+		t.Run("key="+tc.key, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/results", strings.NewReader(`{"testId":"nie-uuid"}`))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.key != "" {
+				req.Header.Set("X-Engine-Key", tc.key)
+			}
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != tc.want {
+				t.Errorf("status = %d, want %d", w.Code, tc.want)
+			}
+		})
+	}
+}
+
+func TestFreeScanRejectsLoopbackTarget(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/freescans", strings.NewReader(`{"target_url":"http://127.0.0.1:15672"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `"target_url":"not_public"`) {
+		t.Errorf("body = %s, want fields.target_url = not_public", w.Body)
 	}
 }
