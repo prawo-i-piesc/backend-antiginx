@@ -9,6 +9,7 @@ import (
 var allKeys = []string{
 	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL",
 	"COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL", "TOTP_ENCRYPTION_KEY",
+	"TRUSTED_PROXIES", "ENGINE_API_KEYS",
 	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
 	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
 	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
@@ -133,6 +134,8 @@ func TestLoadRejectsMalformedValues(t *testing.T) {
 		{"refresh ttl not a duration", "REFRESH_TOKEN_TTL", "forever"},
 		{"totp key not base64", "TOTP_ENCRYPTION_KEY", "nie-base64!!"},
 		{"totp key too short", "TOTP_ENCRYPTION_KEY", "c2hvcnQ="},
+		{"trusted proxies not an address", "TRUSTED_PROXIES", "traefik.local"},
+		{"trusted proxies with a bad mask", "TRUSTED_PROXIES", "10.42.0.0/64"},
 	}
 
 	for _, tt := range tests {
@@ -419,5 +422,63 @@ func TestLoadAcceptsShortJWTSecret(t *testing.T) {
 
 	if _, err := Load(); err != nil {
 		t.Fatalf("Load rejected a short JWT_SECRET: %v", err)
+	}
+}
+
+func TestTrustedProxies(t *testing.T) {
+	t.Run("empty means none", func(t *testing.T) {
+		setEnv(t, validEnv())
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if len(cfg.TrustedProxies) != 0 {
+			t.Errorf("TrustedProxies = %v, want empty", cfg.TrustedProxies)
+		}
+	})
+
+	t.Run("accepts addresses and ranges", func(t *testing.T) {
+		env := validEnv()
+		env["TRUSTED_PROXIES"] = "10.42.0.0/16, 192.168.1.10 ,, ::1"
+		setEnv(t, env)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+
+		want := []string{"10.42.0.0/16", "192.168.1.10", "::1"}
+		if strings.Join(cfg.TrustedProxies, ",") != strings.Join(want, ",") {
+			t.Errorf("TrustedProxies = %v, want %v", cfg.TrustedProxies, want)
+		}
+	})
+}
+
+func TestLoadEngineAPIKeys(t *testing.T) {
+	env := validEnv()
+	env["ENGINE_API_KEYS"] = " nowy-klucz , ,stary-klucz"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	want := []string{"nowy-klucz", "stary-klucz"}
+	if strings.Join(cfg.EngineAPIKeys, "|") != strings.Join(want, "|") {
+		t.Errorf("EngineAPIKeys = %q, want %q", cfg.EngineAPIKeys, want)
+	}
+}
+
+func TestLoadWithoutEngineAPIKeysKeepsTheGateOpen(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.EngineAPIKeys) != 0 {
+		t.Errorf("EngineAPIKeys = %q, want empty", cfg.EngineAPIKeys)
 	}
 }

@@ -19,10 +19,18 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/prawo-i-piesc/backend/internal/api"
+	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
@@ -31,6 +39,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var errBrokerClosed = errors.New("kanał RabbitMQ jest zamknięty")
+
 // main initializes and starts the backend-antiginx API server.
 //
 // It performs the following steps:
@@ -38,7 +48,7 @@ import (
 //  2. Establishes connection to PostgreSQL database
 //  3. Runs database migrations for Scan and ScanResult models
 //  4. Connects to RabbitMQ and declares the scan_queue
-//  5. Initializes HTTP handlers and starts the server on port 8080
+//  5. Initializes HTTP handlers and starts the server on port 4000
 //
 // The function will terminate with a fatal error if any critical
 // initialization step fails (database connection, RabbitMQ connection, etc.)
@@ -157,11 +167,45 @@ func main() {
 	if err != nil {
 		log.Fatalf("Nie udało się zainicjalizować obsługi uwierzytelniania: %v", err)
 	}
-	adminHandler := handlers.NewAdminHandler(db)
+	adminHandler := handlers.NewAdminHandler(db, auth.NewSessionService(db, cfg.RefreshTokenTTL))
 
-	router := api.NewRouter(scanHandler, authHandler, adminHandler, cfg)
+	probes := []api.Probe{
+		{Name: "db", Check: sqlDB.PingContext},
+		{Name: "rabbitmq", Check: func(context.Context) error {
+			if ch.IsClosed() {
+				return errBrokerClosed
+			}
+			return nil
+		}},
+	}
 
-	if err := router.Run(":4000"); err != nil {
-		log.Fatalf("Could not start server: %v", err)
+	srv := &http.Server{
+		Addr:              ":4000",
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, cfg, probes),
+		MaxHeaderBytes:    64 << 10,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Could not start server: %v", err)
+		}
+	}()
+	log.Println("Serwer nasłuchuje na :4000")
+
+	<-ctx.Done()
+	stop()
+	log.Println("Otrzymano sygnał zamknięcia, domykam serwer...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Serwer nie zamknął się w wyznaczonym czasie: %v", err)
 	}
 }

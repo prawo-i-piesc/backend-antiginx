@@ -34,11 +34,11 @@ MAIL_TRANSPORT=none
 ```sh
 docker compose up -d
 docker compose ps
-curl http://localhost:4000/api/health
+curl http://localhost:4000/readyz
 docker compose logs backend-antiginx
 ```
 
-Expect `{"message":"Running..."}` after the API connects to the broker/database and runs migrations. If you choose a different `BACKEND_PORT`, update the `curl` URL accordingly.
+Expect `{"db":"up","rabbitmq":"up"}` after the API connects to the broker/database and runs migrations; `docker compose ps` shows the service as `healthy` once the built-in healthcheck on `/readyz` passes. If you choose a different `BACKEND_PORT`, update the `curl` URL accordingly.
 
 ```sh
 docker compose down

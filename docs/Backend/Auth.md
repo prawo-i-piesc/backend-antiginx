@@ -113,24 +113,36 @@ The browser must complete each options/verify ceremony with WebAuthn APIs; the `
 | `POST` | `/api/auth/email/verify` | Origin-restricted | JSON `{"token":"<email verification token>"}`; verifies the address (`204`). |
 | `POST` | `/api/auth/password/forgot` | Origin-restricted | JSON `{"email":"user@example.com"}`; replies `202` with the same generic message even if the account is absent. Rate-limited. |
 | `POST` | `/api/auth/password/reset` | Origin-restricted | JSON `token`, `new_password`; updates the password, revokes refresh sessions, clears the cookie. May return new recovery codes if TOTP is enabled. |
-| `PATCH` | `/api/utils/profile/name` | JWT | JSON `{"full_name":"Example User"}`; minimum six characters. |
+| `PATCH` | `/api/utils/profile/name` | JWT | JSON `{"full_name":"Example User"}`; minimum two characters. |
 | `PATCH` | `/api/utils/profile/email` | JWT | JSON `{"email":"new@example.com"}`; changing it clears `email_verified` and sends verification mail. |
 | `PATCH` | `/api/utils/profile/password` | JWT | JSON `old_password`, `new_password`; checks the old password and the new password policy. |
 
 Email verification links target the frontend `/verify-email?token=...` and expire after **24 hours**; password reset links target `/reset-password?token=...` and expire after **30 minutes**. Tokens are single-use and stored hashed. Email delivery depends on `MAIL_TRANSPORT` (`resend`, `log`, or `none`; default is `none` without a Resend key), so a successful API response does not by itself guarantee delivery. Password reset revokes refresh sessions; do not assume already-issued access JWTs are revoked immediately.
 
-## 👑 Admin is separate
+## 👑 Admin operations
 
-| Method | Route | Access | Purpose |
-| --- | --- | --- | --- |
-| `GET` | `/api/admin/health` | Admin JWT | Admin health check. |
-| `GET` | `/api/admin/database` | Admin JWT | Database information. |
-| `GET` | `/api/admin/widgets` | Admin JWT | Admin dashboard widgets. |
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/admin/users?q=&limit=&offset=` | Accounts, newest first. `q` matches email or full name (case-insensitive substring). `limit` 1–100, default 25. Returns `users`, `total`, `limit`, `offset`. |
+| `GET` | `/api/admin/users/:id` | `user` summary plus `password_set`, `passkey_mode`, `active_sessions`, `providers`, `passkeys`, `recovery_codes_remaining`, `premium_scans`. |
+| `PATCH` | `/api/admin/users/:id/role` | JSON `{"role":"admin"}` or `{"role":"user"}`; returns the updated summary. |
+| `POST` | `/api/admin/users/:id/logout` | Revokes every refresh session of the account (`204`). |
+| `DELETE` | `/api/admin/users/:id` | Deletes the account with the same cascade as `DELETE /api/auth/account` (`204`). |
+| `GET` | `/api/admin/scans?type=&status=&limit=&offset=` | Free and premium scans together, newest first. `type` is `free` or `premium`, `status` one of `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`. Premium rows carry `user_id`. |
+| `DELETE` | `/api/admin/scans/:id` | Deletes a free or premium scan with its results (`204`). |
+| `GET` | `/api/admin/widgets` | Admin dashboard widgets. |
+| `GET` | `/api/admin/database?table=users\|scans\|premium_scans` | **Deprecated**, sends `Deprecation: true`. Dumps a whole table without paging; kept only until the admin panel moves to `/users` and `/scans`. |
 
-These routes require an access JWT **and** `RequireAdmin`. Registration assigns the ordinary `user` role; these endpoints do not grant admin privileges. The middleware checks the role from the database, rather than trusting only the role claim in the JWT.
+These routes require an access JWT **and** `RequireAdmin`, which reads the role from the database on every request rather than trusting the role claim, so a demotion takes effect immediately. Registration assigns the ordinary `user` role.
+
+- An administrator cannot change their own role or delete their own account here (`409 ADMIN_SELF_ACTION`); their own account goes through `DELETE /api/auth/account`, which asks for the password and second factor.
+- The last remaining administrator cannot be demoted (`409 LAST_ADMIN`).
+- Unknown accounts return `404 USER_NOT_FOUND`, unknown scans `404 SCAN_NOT_FOUND`.
+- Revoking sessions does not invalidate access JWTs already issued; they expire within `ACCESS_TOKEN_TTL`.
+- Every write logs one line `admin=<uuid> action=<action> target=<uuid>` to stdout.
 
 ## ⚠️ Security and errors
 
 - Use HTTPS in production and keep `COOKIE_SECURE=true`. Keep `JWT_SECRET` and `TOTP_ENCRYPTION_KEY` private; `TOTP_ENCRYPTION_KEY` must decode to 32 bytes. Never expose access tokens, session cookies, TOTP secrets, recovery codes, or email tokens in logs or client-side storage unnecessarily.
 - Cookie-based refresh is origin-restricted when `Origin` is supplied, but requests without `Origin` are accepted. Do not describe `RequireOrigin` as a blanket CSRF defense; `SameSite=Lax` and appropriate deployment controls matter too.
-- API failures are JSON with `error` and `code` (and sometimes `fields`). For example, invalid login returns `INVALID_CREDENTIALS`; missing/invalid access credentials return `SESSION_EXPIRED`; invalid MFA codes return `MFA_INVALID_CODE`; a forbidden admin or mismatched origin returns `FORBIDDEN`. OAuth callback failures generally **redirect** with an `error` query parameter instead of returning JSON.
+- API failures are JSON with `error` and `code` (and sometimes `fields`). For example, invalid login returns `INVALID_CREDENTIALS`; missing/invalid access credentials return `SESSION_EXPIRED`; invalid MFA codes return `MFA_INVALID_CODE`; a forbidden admin or mismatched origin returns `FORBIDDEN`. Unknown paths return `NOT_FOUND` and a known path called with the wrong HTTP method returns `METHOD_NOT_ALLOWED`, both in the same JSON shape. OAuth callback failures generally **redirect** with an `error` query parameter instead of returning JSON.

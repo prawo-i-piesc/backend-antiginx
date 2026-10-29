@@ -50,9 +50,19 @@ const (
 	CodeCredentialNotFound         Code = "CREDENTIAL_NOT_FOUND"
 	CodePasskeyPasswordRequired    Code = "PASSKEY_PASSWORD_REQUIRED"
 
-	CodeRateLimited Code = "RATE_LIMITED"
-	CodeForbidden   Code = "FORBIDDEN"
-	CodeInternal    Code = "INTERNAL"
+	CodeScanNotFound     Code = "SCAN_NOT_FOUND"
+	CodeNoValidTests     Code = "NO_VALID_TESTS"
+	CodeQueueUnavailable Code = "QUEUE_UNAVAILABLE"
+
+	CodeUserNotFound    Code = "USER_NOT_FOUND"
+	CodeAdminSelfAction Code = "ADMIN_SELF_ACTION"
+	CodeLastAdmin       Code = "LAST_ADMIN"
+
+	CodeRateLimited      Code = "RATE_LIMITED"
+	CodeForbidden        Code = "FORBIDDEN"
+	CodeNotFound         Code = "NOT_FOUND"
+	CodeMethodNotAllowed Code = "METHOD_NOT_ALLOWED"
+	CodeInternal         Code = "INTERNAL"
 )
 
 type codeInfo struct {
@@ -95,9 +105,19 @@ var codeTable = map[Code]codeInfo{
 	CodeCredentialNotFound:         {http.StatusNotFound, "Credential not found"},
 	CodePasskeyPasswordRequired:    {http.StatusForbidden, "This account signs in with a password first"},
 
-	CodeRateLimited: {http.StatusTooManyRequests, "Too many requests"},
-	CodeForbidden:   {http.StatusForbidden, "Forbidden"},
-	CodeInternal:    {http.StatusInternalServerError, "Internal server error"},
+	CodeScanNotFound:     {http.StatusNotFound, "Scan not found"},
+	CodeNoValidTests:     {http.StatusBadRequest, "No valid tests provided"},
+	CodeQueueUnavailable: {http.StatusServiceUnavailable, "Scan queue is unavailable, try again later"},
+
+	CodeUserNotFound:    {http.StatusNotFound, "User not found"},
+	CodeAdminSelfAction: {http.StatusConflict, "Administrators cannot change their own role or delete their own account here"},
+	CodeLastAdmin:       {http.StatusConflict, "Cannot remove the last remaining administrator"},
+
+	CodeRateLimited:      {http.StatusTooManyRequests, "Too many requests"},
+	CodeForbidden:        {http.StatusForbidden, "Forbidden"},
+	CodeNotFound:         {http.StatusNotFound, "Resource not found"},
+	CodeMethodNotAllowed: {http.StatusMethodNotAllowed, "Method not allowed"},
+	CodeInternal:         {http.StatusInternalServerError, "Internal server error"},
 }
 
 type ErrorResponse struct {

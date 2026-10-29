@@ -25,7 +25,7 @@ import (
 const bcryptCost = 12
 
 type UpdateNameRequest struct {
-	FullName string `json:"full_name" binding:"required,min=6"`
+	FullName string `json:"full_name" binding:"required,min=2"`
 }
 
 type UpdateEmailRequest struct {
@@ -139,6 +139,21 @@ func currentUserID(c *gin.Context) (string, bool) {
 		return "", false
 	}
 	return userIDStr, true
+}
+
+func currentUserUUID(c *gin.Context) (uuid.UUID, bool) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return uuid.Nil, false
+	}
+
+	parsed, err := uuid.Parse(userID)
+	if err != nil {
+		log.Printf("Handler: userID %q w kontekście nie jest UUID", userID)
+		httpx.Fail(c, httpx.CodeSessionExpired)
+		return uuid.Nil, false
+	}
+	return parsed, true
 }
 
 func (h *AuthHandler) loadCurrentUser(c *gin.Context, user *models.User) bool {

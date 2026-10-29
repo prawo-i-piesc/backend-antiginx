@@ -59,7 +59,9 @@ backend-antiginx/
 ## 🔌 API Surface
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| GET | `/api/health` | Service health check | Public |
+| GET | `/healthz` | Liveness probe, no dependencies | Public |
+| GET | `/readyz` | Readiness probe, checks PostgreSQL and RabbitMQ | Public |
+| GET | `/api/health` | Legacy health check, no dependencies | Public |
 | POST | `/api/auth/register` | Register user | Public |
 | POST | `/api/auth/login` | Login and get JWT | Public |
 | GET | `/api/auth/me` | Current user profile | Bearer JWT |
@@ -68,10 +70,11 @@ backend-antiginx/
 | POST | `/api/scans` | Queue an account scan with selected tests | Bearer JWT |
 | GET | `/api/scans/:id` | Retrieve your account scan and results | Bearer JWT |
 | GET | `/api/utils/tests` | List available test IDs | Bearer JWT |
-| POST | `/api/results` | Receive engine callback (protect externally) | Public |
+| POST | `/api/results` | Receive engine callback | `X-Engine-Key` |
+| GET | `/api/admin/users`, `/api/admin/scans` | Paged accounts and scans for the admin panel | Admin JWT |
 
 !!! warning "Deployment security"
-    `/api/results` is unauthenticated in the current router. Restrict it to trusted workers at the network or gateway layer. Free scan details are public by ID; accept only authorized scan targets.
+    Set `ENGINE_API_KEYS` in production: while it is empty, `/api/results` accepts results from anyone. Free scan details are public by ID, and scan targets must be public hosts; accept only authorized scan targets.
 
 
 <br>

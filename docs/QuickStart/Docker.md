@@ -28,10 +28,10 @@ docker run -d --name backend-antiginx \
   -p 4000:4000 \
   ghcr.io/prawo-i-piesc/backend-antiginx:latest
 
-curl http://localhost:4000/api/health
+curl http://localhost:4000/readyz
 ```
 
-Expected: `{"message":"Running..."}`. The application listens on port `4000` inside the container. If your DB/MQ is on a Docker network, add `--network <network-name>` and set URLs to the appropriate DNS names; when using HTTP localhost and refresh cookies, set `COOKIE_SECURE=false` **only for development**.
+Expected: `{"db":"up","rabbitmq":"up"}`. The image declares a `HEALTHCHECK` on `/readyz`, so `docker ps` shows the container as `healthy` once both dependencies answer. The application listens on port `4000` inside the container. If your DB/MQ is on a Docker network, add `--network <network-name>` and set URLs to the appropriate DNS names; when using HTTP localhost and refresh cookies, set `COOKIE_SECURE=false` **only for development**.
 
 ```sh
 docker logs backend-antiginx

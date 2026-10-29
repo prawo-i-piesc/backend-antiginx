@@ -43,8 +43,16 @@ var specStatuses = map[Code]int{
 	CodeWebAuthnVerificationFailed: http.StatusUnauthorized,
 	CodeCredentialNotFound:         http.StatusNotFound,
 	CodePasskeyPasswordRequired:    http.StatusForbidden,
+	CodeScanNotFound:               http.StatusNotFound,
+	CodeNoValidTests:               http.StatusBadRequest,
+	CodeQueueUnavailable:           http.StatusServiceUnavailable,
+	CodeUserNotFound:               http.StatusNotFound,
+	CodeAdminSelfAction:            http.StatusConflict,
+	CodeLastAdmin:                  http.StatusConflict,
 	CodeRateLimited:                http.StatusTooManyRequests,
 	CodeForbidden:                  http.StatusForbidden,
+	CodeNotFound:                   http.StatusNotFound,
+	CodeMethodNotAllowed:           http.StatusMethodNotAllowed,
 	CodeInternal:                   http.StatusInternalServerError,
 }
 

@@ -77,6 +77,7 @@ nav:
       - CLI: QuickStart/CLI.md
       - Docker: QuickStart/Docker.md
       - Docker Compose: QuickStart/DockerCompose.md
+      - Kubernetes: QuickStart/Kubernetes.md
   - Backend Documentation:
       - Overview: Backend/README.md
       - Configuration: Backend/Configuration.md

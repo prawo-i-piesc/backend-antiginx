@@ -11,6 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Statusy skanu, wspólne dla darmowych i premium.
+const (
+	ScanStatusPending   = "PENDING"
+	ScanStatusRunning   = "RUNNING"
+	ScanStatusCompleted = "COMPLETED"
+	ScanStatusFailed    = "FAILED"
+)
+
 // Scan represents a security scan request and its current state.
 //
 // Each scan targets a specific URL and progresses through various

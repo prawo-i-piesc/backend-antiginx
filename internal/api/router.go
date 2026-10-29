@@ -5,6 +5,8 @@
 package api
 
 import (
+	"log"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -15,50 +17,58 @@ import (
 	"github.com/prawo-i-piesc/backend/middleware"
 )
 
-var quietPaths = []string{"/api/auth/refresh"}
+var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config) *gin.Engine {
+const maxRequestBody = 1 << 20
+
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config, probes []Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		log.Printf("Router: nieprawidłowe TRUSTED_PROXIES, zostaję przy adresie połączenia: %v", err)
+	}
+	r.HandleMethodNotAllowed = true
+
 	r.Use(
 		gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: quietPaths}),
 		gin.Recovery(),
 	)
 
+	// Sondy rejestrujemy przed CORS i resztą middleware'u: gin składa łańcuch
+	// handlerów w chwili rejestracji trasy, więc to, co dochodzi przez Use
+	// niżej, ich nie dotyczy. Kubelet nie wysyła Origin i nie potrzebuje CSP.
+	r.GET("/healthz", healthz)
+	r.GET("/readyz", readyz(probes))
+
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.PublicBaseURL},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		ExposeHeaders:    []string{"Content-Length", "Retry-After"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
 
-	r.Use(func(c *gin.Context) {
-		c.Header("X-Frame-Options", "DENY")
-		c.Header("Content-Security-Policy", "default-src 'none'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data:; style-src * 'unsafe-inline'; frame-ancestors 'none';")
-		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		c.Header("Referrer-Policy", "no-referrer")
-		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("Permissions-Policy", "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()")
-		c.Next()
-	})
+	r.Use(securityHeaders(cfg.CookieSecure), limitRequestBody(maxRequestBody))
+
+	r.NoRoute(func(c *gin.Context) { httpx.Fail(c, httpx.CodeNotFound) })
+	r.NoMethod(func(c *gin.Context) { httpx.Fail(c, httpx.CodeMethodNotAllowed) })
 
 	public := r.Group("/api")
 	{
 		public.POST("/freescans", scanHandler.HandleScanSubmission)
-		public.POST("/results", scanHandler.HandleResultSubmission)
+		public.POST("/results", middleware.RequireEngineKey(cfg.EngineAPIKeys), scanHandler.HandleResultSubmission)
 		public.GET("/freescans/:id", scanHandler.HandleGetScan)
 		public.GET("/health", scanHandler.HandleHealthCheck)
-		public.POST("/auth/register", authHandler.Register)
-		public.POST("/auth/login", authHandler.Login)
 	}
 
-	session := r.Group("/api/auth")
-	session.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	authPublic := r.Group("/api/auth")
+	authPublic.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
 	{
-		session.POST("/refresh", authHandler.HandleRefresh)
+		authPublic.POST("/register", authHandler.Register)
+		authPublic.POST("/login", authHandler.Login)
+		authPublic.POST("/refresh", authHandler.HandleRefresh)
 	}
 
 	sessionProtected := r.Group("/api/auth")
@@ -76,7 +86,6 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
 		protected.GET("/users/widgets", scanHandler.HandleUserDashboardWidgets)
-		//Tutaj karol masz enpointa
 		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
 		protected.PATCH("/utils/profile/name", authHandler.HandleUpdateFullName)
 		protected.PATCH("/utils/profile/email", authHandler.HandleUpdateEmail)
@@ -154,13 +163,44 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{
-		admin.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
-		admin.GET("/database", adminHandler.HandleGetDatabaseInfo)
-
 		admin.GET("/widgets", adminHandler.HandleGetDashboardWidgets)
+
+		admin.GET("/users", adminHandler.HandleListUsers)
+		admin.GET("/users/:id", adminHandler.HandleGetUser)
+		admin.PATCH("/users/:id/role", adminHandler.HandleSetUserRole)
+		admin.POST("/users/:id/logout", adminHandler.HandleLogoutUser)
+		admin.DELETE("/users/:id", adminHandler.HandleDeleteUser)
+
+		admin.GET("/scans", adminHandler.HandleListScans)
+		admin.DELETE("/scans/:id", adminHandler.HandleDeleteScan)
+
+		// Deprecated: zrzut całej tabeli, do usunięcia po przejściu panelu
+		// admina na /users i /scans.
+		admin.GET("/database", adminHandler.HandleGetDatabaseInfo)
 	}
 
 	return r
+}
+
+func securityHeaders(httpsOnly bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+		c.Header("Referrer-Policy", "no-referrer")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("Permissions-Policy", "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()")
+		if httpsOnly {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		c.Next()
+	}
+}
+
+func limitRequestBody(limit int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		}
+		c.Next()
+	}
 }
