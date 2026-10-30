@@ -37,11 +37,11 @@ terminationGracePeriodSeconds: 20
 
 `terminationGracePeriodSeconds` must exceed the backend's 10-second graceful drain after `SIGTERM`. The process exits during startup if PostgreSQL, migrations or RabbitMQ fail, so the startup probe only has to cover migration time.
 
-The backend does not reconnect to RabbitMQ after the connection drops. `/readyz` then stays `503` and the Service stops routing to the pod, but liveness keeps passing, so restart the pod (or the Deployment) once the broker is back.
+The backend does not reconnect to RabbitMQ after the connection drops. The result consumers stop with the connection and the process shuts down gracefully, so the pod restarts and reconnects once the broker is back.
 
-## 🔑 Secrets and engine replicas
+## 🔑 Secrets and scaling
 
-Load `JWT_SECRET`, `TOTP_ENCRYPTION_KEY` and `ENGINE_API_KEYS` from a `Secret`. The engine reads the same `ENGINE_API_KEYS` value and sends one key in `X-Engine-Key`, so any number of engine replicas share it without any change on the backend. To rotate, set `ENGINE_API_KEYS=new,old`, roll the engine onto `new`, then drop `old`.
+Load `JWT_SECRET` and `TOTP_ENCRYPTION_KEY` from a `Secret`. Results come from the daemon through RabbitMQ, so backend replicas share the results queue: each replica runs `RESULT_CONSUMERS` consumers and the broker spreads results across all of them.
 
 ## 🌐 Behind an ingress
 

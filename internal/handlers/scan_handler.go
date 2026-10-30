@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +30,10 @@ const (
 )
 
 const maxTargetURLLength = 2048
+
+const publishConfirmTimeout = 5 * time.Second
+
+var errTaskRejected = errors.New("broker odrzucił zadanie skanu")
 
 type ScanHandler struct {
 	amqpChannel *amqp.Channel
@@ -62,37 +64,11 @@ type CommandParameter struct {
 	Arguments []string `json:"Arguments"`
 }
 
+// ScanTaskPayload to zadanie na scan_queue, w kształcie ScanTask z daemona.
 type ScanTaskPayload struct {
-	Target     string             `json:"Target"`
-	Parameters []CommandParameter `json:"Parameters"`
-}
-
-type EngineTestResult struct {
-	Name        string      `json:"Name"`
-	ThreatLevel string      `json:"ThreatLevel"`
-	Metadata    interface{} `json:"Metadata"`
-	Description string      `json:"Description"`
-}
-
-type ResultType int
-
-const (
-	Message ResultType = iota
-	Success
-)
-
-type RequestInfo struct {
-	Message string `json:"Message"`
-	Code    int    `json:"Code"`
-}
-
-type AsyncResultRequest struct {
-	Target      string           `json:"target"`
-	TestID      string           `json:"testId"`
-	Result      EngineTestResult `json:"result"`
-	EndFlag     bool             `json:"endFlag"`
-	ResultType  ResultType       `json:"resultType"`
-	ProcessInfo RequestInfo      `json:"message"`
+	Target     string              `json:"Target"`
+	Parameters []*CommandParameter `json:"Parameters"`
+	TaskId     string              `json:"TaskId"`
 }
 
 type UserDashboardScan struct {
@@ -279,13 +255,13 @@ func validTarget(c *gin.Context, raw string) (string, bool) {
 func (h *ScanHandler) queueScan(c *gin.Context, model any, scanID uuid.UUID, target string, tests []string, antiBot bool) bool {
 	task := ScanTaskPayload{
 		Target: target,
-		Parameters: []CommandParameter{
+		Parameters: []*CommandParameter{
 			{Name: "--tests", Arguments: tests},
-			{Name: "--taskId", Arguments: []string{scanID.String()}},
 		},
+		TaskId: scanID.String(),
 	}
 	if antiBot {
-		task.Parameters = append(task.Parameters, CommandParameter{
+		task.Parameters = append(task.Parameters, &CommandParameter{
 			Name:      "--antiBotDetection",
 			Arguments: []string{},
 		})
@@ -302,15 +278,17 @@ func (h *ScanHandler) queueScan(c *gin.Context, model any, scanID uuid.UUID, tar
 	return true
 }
 
-// publishTask wysyła zadanie przez main_exchange, tak jak oba rodzaje skanów:
-// tylko ta ścieżka przechodzi przez topologię z retry_exchange i wait_queue.
+// publishTask wysyła zadanie przez main_exchange i czeka na potwierdzenie
+// brokera. Kolejka quorum odrzuca wiadomość nackiem, gdy nie ma większości
+// węzłów albo trafi w limit długości (x-overflow reject-publish), a bez
+// potwierdzeń takiego nacka byśmy nie zobaczyli.
 func (h *ScanHandler) publishTask(ctx context.Context, task ScanTaskPayload) error {
 	body, err := json.Marshal(task)
 	if err != nil {
 		return err
 	}
 
-	return h.amqpChannel.PublishWithContext(ctx,
+	confirm, err := h.amqpChannel.PublishWithDeferredConfirmWithContext(ctx,
 		scanExchange,
 		scanRoutingKey,
 		false,
@@ -318,8 +296,26 @@ func (h *ScanHandler) publishTask(ctx context.Context, task ScanTaskPayload) err
 		amqp.Publishing{
 			DeliveryMode: amqp.Persistent,
 			ContentType:  "application/json",
+			MessageId:    task.TaskId,
 			Body:         body,
 		})
+	if err != nil {
+		return err
+	}
+
+	// Potwierdzenie czekamy niezależnie od klienta: zerwane połączenie nie
+	// cofa publikacji, a FAILED dla skanu, który już jest w kolejce, kłamie.
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), publishConfirmTimeout)
+	defer cancel()
+
+	acked, err := confirm.WaitContext(waitCtx)
+	if err != nil {
+		return err
+	}
+	if !acked {
+		return errTaskRejected
+	}
+	return nil
 }
 
 // scanRef to wynik jednego zapytania rozstrzygającego, do której tabeli
@@ -351,123 +347,6 @@ func findScan(db *gorm.DB, id uuid.UUID) (*scanRef, error) {
 		return nil, nil
 	}
 	return &refs[0], nil
-}
-
-func (h *ScanHandler) HandleResultSubmission(c *gin.Context) {
-	var req AsyncResultRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.FailValidation(c, err)
-		return
-	}
-
-	if gin.IsDebugging() {
-		log.Printf("results: payload %+v", req)
-	}
-
-	scanID, err := uuid.Parse(req.TestID)
-	if err != nil {
-		httpx.FailWithFields(c, httpx.CodeValidationFailed, map[string]string{"testId": "invalid"})
-		return
-	}
-
-	scan, err := findScan(h.db, scanID)
-	if err != nil {
-		log.Printf("results: nie udało się odczytać skanu %s: %v", scanID, err)
-		httpx.Fail(c, httpx.CodeInternal)
-		return
-	}
-	if scan == nil {
-		httpx.Fail(c, httpx.CodeScanNotFound)
-		return
-	}
-
-	switch {
-	case !req.EndFlag && req.ResultType == Message:
-		testName := req.Result.Name
-		if testName == "" {
-			testName = "Engine/Execution Error"
-		}
-
-		result := models.ScanResult{
-			ScanID:   scanID,
-			TestName: testName,
-			Severity: "Info",
-			Passed:   true,
-			Message:  fmt.Sprintf("%s (Code: %d) - %s", req.ProcessInfo.Message, req.ProcessInfo.Code, "Perhaps you can use antibot detection to prevent this from happening."),
-			Metadata: datatypes.JSON([]byte(`{}`)),
-		}
-
-		if err := h.saveResult(scan, scanID, &result); err != nil {
-			log.Printf("results: nie udało się zapisać komunikatu silnika dla %s: %v", scanID, err)
-			httpx.Fail(c, httpx.CodeInternal)
-			return
-		}
-
-		log.Printf("results: test przerwany albo zablokowany dla %s: %s", scanID, req.ProcessInfo.Message)
-		c.JSON(http.StatusOK, gin.H{"message": "Crash result logged successfully"})
-
-	case req.Result.Name == "":
-		now := time.Now()
-		err := h.db.Model(scan.model()).
-			Where("id = ?", scanID).
-			Updates(map[string]interface{}{
-				"status":       models.ScanStatusCompleted,
-				"completed_at": &now,
-			}).Error
-		if err != nil {
-			log.Printf("results: nie udało się domknąć skanu %s: %v", scanID, err)
-			httpx.Fail(c, httpx.CodeInternal)
-			return
-		}
-
-		log.Printf("results: skan %s zakończony (%s)", scanID, scan.Kind)
-		c.JSON(http.StatusOK, gin.H{"message": "Scan completed"})
-
-	default:
-		metaJSON, err := json.Marshal(req.Result.Metadata)
-		if err != nil {
-			metaJSON = []byte(`{}`)
-		}
-
-		result := models.ScanResult{
-			ScanID:   scanID,
-			TestName: req.Result.Name,
-			Severity: req.Result.ThreatLevel,
-			Passed:   req.Result.ThreatLevel == "None" || req.Result.ThreatLevel == "Info",
-			Message:  req.Result.Description,
-			Metadata: datatypes.JSON(metaJSON),
-		}
-
-		if err := h.saveResult(scan, scanID, &result); err != nil {
-			log.Printf("results: nie udało się zapisać wyniku dla %s: %v", scanID, err)
-			httpx.Fail(c, httpx.CodeInternal)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Result received"})
-	}
-}
-
-// saveResult zapisuje wynik i przy pierwszym z nich przestawia skan na
-// RUNNING. Skan, który już ruszył, kosztuje jeden INSERT bez transakcji.
-func (h *ScanHandler) saveResult(scan *scanRef, scanID uuid.UUID, result *models.ScanResult) error {
-	if scan.Status != models.ScanStatusPending {
-		return h.db.Create(result).Error
-	}
-
-	return h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(result).Error; err != nil {
-			return err
-		}
-
-		now := time.Now()
-		return tx.Model(scan.model()).
-			Where("id = ? AND status = ?", scanID, models.ScanStatusPending).
-			Updates(map[string]interface{}{
-				"status":     models.ScanStatusRunning,
-				"started_at": &now,
-			}).Error
-	})
 }
 
 func (h *ScanHandler) HandleGetScan(c *gin.Context) {

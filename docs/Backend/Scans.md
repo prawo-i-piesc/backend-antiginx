@@ -16,7 +16,6 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `GET` | `/api/users/scans` | Bearer access JWT | List the current user's premium scans with results. |
 | `GET` | `/api/users/widgets` | Bearer access JWT | Counts (`total_scans`, `detected_threats`, `safe_sites`) and up to four `recent_scans`. |
 | `GET` | `/api/utils/tests` | Bearer access JWT | Grouped test IDs available to premium scans. |
-| `POST` | `/api/results` | `X-Engine-Key` (when `ENGINE_API_KEYS` is set) | Store an engine result, execution message, or scan completion. |
 
 Admin routes (`/api/admin/*`) require an **admin** JWT; see [Authentication](./Auth.md#admin-operations).
 
@@ -63,49 +62,53 @@ Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different 
 
 ## 🐰 Worker task
 
-The backend publishes persistent JSON through `main_exchange` with routing key `scan_key`, which delivers it to `scan_queue`. Both free and premium scans take this path, so both go through the `retry_exchange`/`wait_queue` retry topology. If the broker refuses the message the scan is marked `FAILED` and the API returns `503 QUEUE_UNAVAILABLE`. Example task:
+The backend publishes persistent JSON through `main_exchange` with routing key `scan_key`, which delivers it to `scan_queue`, and waits for the broker's publisher confirm. `scan_queue` is a quorum queue: after three deliveries the daemon could not finish, the task is dead-lettered through `scan_dlx` into `scan_dlq`. When the broker nacks the task (for example a quorum without majority, or a length limit hit under `x-overflow: reject-publish`), is unreachable or the confirm does not arrive within 5 seconds, the scan is marked `FAILED` and the API returns `503 QUEUE_UNAVAILABLE`. Example task, in the shape of the daemon's `ScanTask`:
 
 ```json
 {
   "Target": "https://example.com",
   "Parameters": [
-    {"Name": "--tests", "Arguments": ["https", "hsts"]},
-    {"Name": "--taskId", "Arguments": ["<scanId>"]}
-  ]
+    {"Name": "--tests", "Arguments": ["https", "hsts"]}
+  ],
+  "TaskId": "<scanId>"
 }
 ```
 
-Premium tasks can additionally contain `{"Name":"--antiBotDetection","Arguments":[]}`. No engine is started by this repository. Deploy [engine-antiginx](https://github.com/prawo-i-piesc/engine-antiginx) separately with access to RabbitMQ and a backend callback URL.
+Premium tasks can additionally contain `{"Name":"--antiBotDetection","Arguments":[]}`. No engine is started by this repository. Deploy [daemon-antiginx](https://github.com/prawo-i-piesc/daemon-antiginx) separately with access to RabbitMQ.
 
-## 🔄 Result callback contract
+## 🔄 Results queue contract
 
-`POST /api/results` binds `AsyncResultRequest`. When `ENGINE_API_KEYS` is set, every call must carry one of the keys:
-
-```http
-POST /api/results
-X-Engine-Key: <one of ENGINE_API_KEYS>
-Content-Type: application/json
-```
-
-A missing or wrong key returns `403 FORBIDDEN`; the rejected key is never logged. The route has no rate limit, so any number of engine replicas can share one key. `testId` is the scan UUID received as `scanId`; `result` uses the engine's capitalized property names:
+The daemon publishes every engine result to the results queue (`RABBITMQ_RESULTS_QUEUE`, default `results_queue`) through the default exchange. Each message is the daemon's `ScanContext`; `testId` is the scan UUID received as `TaskId`:
 
 ```json
 {
   "target": "https://example.com",
   "testId": "<scanId>",
-  "result": {
-    "Name": "https",
-    "ThreatLevel": "Info",
-    "Metadata": {"source": "worker"},
-    "Description": "HTTPS is enabled"
-  },
   "endFlag": false,
-  "resultType": 1,
-  "message": {"Message": "", "Code": 0}
+  "result": {
+    "testResult": {
+      "Name": "https",
+      "Certainty": 100,
+      "ThreatLevel": "Info",
+      "Metadata": {"source": "worker"},
+      "Description": "HTTPS is enabled"
+    },
+    "scanInfo": {"Message": "", "Code": 0},
+    "resultType": 1
+  }
 }
 ```
 
-A named result is saved and changes `PENDING` to `RUNNING`. `ThreatLevel` values `None` or `Info` produce `passed: true`; others produce `false`. A callback with `result.Name` empty normally marks the scan `COMPLETED`, regardless of `endFlag`. If `endFlag` is false and `resultType` is `0` (`Message`), it instead records an execution/crash message and moves the scan to `RUNNING`. `resultType` `1` represents `Success`. An unknown scan returns `404 SCAN_NOT_FOUND`; a `testId` that is not a UUID returns `400 VALIDATION_FAILED`. The key proves the caller is *an* engine, not which scan it was given: any key holder can write to any scan.
+`RESULT_CONSUMERS` consumers, each on its own channel, collect messages into batches of `RESULT_BATCH_SIZE` (or whatever arrived within 50 ms) and save each batch in one transaction, acknowledging it with a single multiple ack. A failed save puts the whole batch back on the queue after a backoff of 1 to 30 seconds. A message that is not JSON or has a `testId` that is not a UUID is rejected without requeueing.
+
+Within a batch:
+
+- `endFlag: true` marks the scan `COMPLETED`. The engine's end message carries `resultType` `0` and an empty result, so `endFlag` is checked first and that message never becomes a result row.
+- `resultType` `1` (`Success`) saves a result row. `ThreatLevel` values `None` or `Info` produce `passed: true`; others produce `false`. Missing `Metadata` is stored as `{}`.
+- `resultType` `0` (`Message`) records the engine's execution message (a test interrupted or blocked) as an `Info` row named after the test, or `Engine/Execution Error` when the name is empty.
+- The first saved message moves the scan `PENDING` → `RUNNING`. A `FAILED` scan is never completed. Messages for a scan that no longer exists are logged and dropped.
+
+Delivery is at-least-once: a result saved right before the connection dropped can arrive again and be stored twice. Messages are spread over several consumers, so the end message can be committed a few milliseconds before the last results of the same scan.
 
 ## ⚠️ Errors and limitations
 

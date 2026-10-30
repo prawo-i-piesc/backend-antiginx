@@ -43,6 +43,6 @@ docker rm backend-antiginx
 
 - **Container stops during startup:** inspect `docker logs backend-antiginx`; configuration, PostgreSQL connection, database migrations, and RabbitMQ connection are required before the API starts.
 - **Connection refused to DB/MQ:** check credentials, networking, and hostnames from the container's point of view. `localhost` usually is not the dependency.
-- **No scan results:** an external [engine worker](https://github.com/prawo-i-piesc/engine-antiginx) must consume the queue and call the backend with results.
+- **No scan results:** the [daemon](https://github.com/prawo-i-piesc/daemon-antiginx) must consume the queue and publish results to the results queue.
 
 Next: [Docker Compose](./DockerCompose.md) or [API usage](./CLI.md).

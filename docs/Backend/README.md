@@ -9,19 +9,20 @@ graph TD
     Client[Client] --> API[Gin API]
     API --> DB[(PostgreSQL)]
     API --> MQ[(RabbitMQ scan_queue)]
-    MQ --> Engine[Engine worker - separate deployment]
-    Engine --> Callback[POST /api/results]
-    Callback --> DB
+    MQ --> Daemon[Daemon + engine - separate deployment]
+    Daemon --> Results[(RabbitMQ results_queue)]
+    Results --> Consumer[Result consumers]
+    Consumer --> DB
     Client --> Poll[GET scan by ID]
     Poll --> DB
 ```
 
 1. `POST /api/freescans` queues a public scan; `POST /api/scans` queues an authenticated user's scan with selected tests.
-2. The backend saves a scan as `PENDING` and publishes a persistent JSON task to RabbitMQ. Free submissions use `main_exchange` / `scan_key`; premium submissions publish to the default exchange with routing key `scan_queue`.
-3. An **external worker** consumes `scan_queue` and calls `POST /api/results` as tests run. Results move `PENDING` → `RUNNING`; a completion callback marks the scan `COMPLETED`.
+2. The backend saves a scan as `PENDING` and publishes a persistent JSON task through `main_exchange` / `scan_key` to `scan_queue`, waiting for the broker's publisher confirm.
+3. The **daemon** consumes `scan_queue`, runs the engine and publishes every result to the results queue. The backend's result consumers save them in batches: the first result moves the scan `PENDING` → `RUNNING`, the end message (`endFlag`) marks it `COMPLETED`.
 4. Clients poll `GET /api/freescans/:id` (public) or `GET /api/scans/:id` (owner only) for status and results.
 
-`main.go` declares a durable `scan_queue` with a dead-letter exchange `retry_exchange`, and a `wait_queue` with a 5-second TTL routed back to `main_exchange`. The backend itself does not consume messages or execute security tests.
+`main.go` declares a quorum `scan_queue` that dead-letters through `scan_dlx` into `scan_dlq` after three deliveries, and the results queue. The backend does not execute security tests.
 
 ## 📁 Source map
 
@@ -30,7 +31,8 @@ graph TD
 | `main.go` | Startup, migrations, RabbitMQ topology and server |
 | `internal/api/router.go` | Route groups, CORS and response security headers |
 | `internal/config/config.go` | Required settings and defaults |
-| `internal/handlers/scan_handler.go` | Scan submissions, worker callbacks, polling, dashboards |
+| `internal/handlers/scan_handler.go` | Scan submissions, polling, dashboards |
+| `internal/results/` | Results queue contract, batched consumers and storage |
 | `internal/handlers/auth*_handler.go` | Registration, sessions, MFA, OAuth, passkeys, account operations |
 | `internal/handlers/admin_handler.go` | Admin database and dashboard endpoints |
 | `internal/models/` | Database models and JSON scan result types |
@@ -39,9 +41,9 @@ graph TD
 ## 📚 Reference
 
 - [Configuration](./Configuration.md) — environment, startup and deployment.
-- [Scans and results](./Scans.md) — endpoints, queue payload and callback contract.
+- [Scans and results](./Scans.md) — endpoints, task payload and results queue contract.
 - [Authentication and account API](./Auth.md) — JWT, refresh sessions, MFA, OAuth, WebAuthn and admin routes.
 - [Quick Start](../QuickStart/QuickStart.md) — local, Docker and Compose instructions.
 
 !!! warning "Integration boundary"
-    `POST /api/results` is public in the current router. It must not be exposed to untrusted callers without external controls (for example, a private network or gateway authorization). Scan target validation is limited to a required field; restrict who can submit scan targets when deploying this service.
+    Results arrive only through RabbitMQ, so anyone who can publish to the results queue can write scan results. Keep the broker on a private network. Target ownership is not verified; restrict who can submit scan targets when deploying this service.

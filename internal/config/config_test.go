@@ -9,7 +9,7 @@ import (
 var allKeys = []string{
 	"DATABASE_URL", "RABBITMQ_URL", "JWT_SECRET", "PUBLIC_BASE_URL",
 	"COOKIE_SECURE", "ACCESS_TOKEN_TTL", "REFRESH_TOKEN_TTL", "TOTP_ENCRYPTION_KEY",
-	"TRUSTED_PROXIES", "ENGINE_API_KEYS",
+	"TRUSTED_PROXIES", "RABBITMQ_RESULTS_QUEUE", "RESULT_CONSUMERS", "RESULT_BATCH_SIZE",
 	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
 	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
 	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
@@ -455,30 +455,49 @@ func TestTrustedProxies(t *testing.T) {
 	})
 }
 
-func TestLoadEngineAPIKeys(t *testing.T) {
-	env := validEnv()
-	env["ENGINE_API_KEYS"] = " nowy-klucz , ,stary-klucz"
-	setEnv(t, env)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	want := []string{"nowy-klucz", "stary-klucz"}
-	if strings.Join(cfg.EngineAPIKeys, "|") != strings.Join(want, "|") {
-		t.Errorf("EngineAPIKeys = %q, want %q", cfg.EngineAPIKeys, want)
-	}
-}
-
-func TestLoadWithoutEngineAPIKeysKeepsTheGateOpen(t *testing.T) {
+func TestLoadResultConsumerDefaults(t *testing.T) {
 	setEnv(t, validEnv())
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if len(cfg.EngineAPIKeys) != 0 {
-		t.Errorf("EngineAPIKeys = %q, want empty", cfg.EngineAPIKeys)
+	if cfg.ResultsQueue != DefaultResultsQueue || cfg.ResultConsumers != DefaultResultConsumers || cfg.ResultBatchSize != DefaultResultBatchSize {
+		t.Errorf("got queue=%q consumers=%d batch=%d, want defaults", cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
+	}
+}
+
+func TestLoadResultConsumerOverrides(t *testing.T) {
+	env := validEnv()
+	env["RABBITMQ_RESULTS_QUEUE"] = "wyniki"
+	env["RESULT_CONSUMERS"] = "4"
+	env["RESULT_BATCH_SIZE"] = "200"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.ResultsQueue != "wyniki" || cfg.ResultConsumers != 4 || cfg.ResultBatchSize != 200 {
+		t.Errorf("got queue=%q consumers=%d batch=%d", cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
+	}
+}
+
+func TestLoadRejectsNonPositiveResultSettings(t *testing.T) {
+	for _, tc := range []struct{ key, value string }{
+		{"RESULT_CONSUMERS", "0"},
+		{"RESULT_CONSUMERS", "dwa"},
+		{"RESULT_BATCH_SIZE", "-5"},
+	} {
+		t.Run(tc.key+"="+tc.value, func(t *testing.T) {
+			env := validEnv()
+			env[tc.key] = tc.value
+			setEnv(t, env)
+
+			_, err := Load()
+			if err == nil || !strings.Contains(err.Error(), tc.key) {
+				t.Errorf("err = %v, want error naming %s", err, tc.key)
+			}
+		})
 	}
 }
