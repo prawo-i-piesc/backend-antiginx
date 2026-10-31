@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="{{.L.HTMLLang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{.L.Title}} – {{.Scan.TargetURL}}</title>
+<style>
+:root{--fg:#1d2433;--muted:#5b6475;--line:#dde2ea;--bg:#ffffff;--panel:#f6f8fb;
+--critical:#8b1a1a;--high:#c0392b;--medium:#d9822b;--low:#b59a00;--info:#2f6fb3;--none:#2e7d4f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+main{max-width:960px;margin:0 auto;padding:32px 16px 48px}
+h1{font-size:26px;margin:0 0 4px}
+h2{font-size:19px;margin:32px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sub{color:var(--muted);margin:0 0 24px;word-break:break-all}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;white-space:nowrap}
+.meta th{width:180px}
+.meta td{word-break:break-all}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.card b{display:block;font-size:24px}
+.card span{color:var(--muted);font-size:13px}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
+.sev-Critical{background:var(--critical)}.sev-High{background:var(--high)}.sev-Medium{background:var(--medium)}
+.sev-Low{background:var(--low)}.sev-Info{background:var(--info)}.sev-None{background:var(--none)}
+.pass{color:var(--none);font-weight:600}.fail{color:var(--high);font-weight:600}
+.finding{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:12px;break-inside:avoid}
+.finding h3{font-size:16px;margin:0 0 6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.finding p{margin:6px 0;white-space:pre-wrap;word-break:break-word}
+.finding .rule{color:var(--muted);font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
+details summary{cursor:pointer;color:var(--muted);font-size:13px}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;overflow-x:auto;font-size:12px;white-space:pre-wrap;word-break:break-all}
+.note{color:var(--muted);font-size:12px}
+footer{margin-top:40px;color:var(--muted);font-size:12px}
+@media print{main{padding:0}details{display:block}details>summary{display:none}a{color:inherit}}
+</style>
+</head>
+<body>
+<main>
+<h1>{{.L.Title}}</h1>
+<p class="sub">{{.Scan.TargetURL}}</p>
+
+<h2>{{.L.SectionScan}}</h2>
+<table class="meta">
+<tr><th>{{.L.Target}}</th><td>{{.Scan.TargetURL}}</td></tr>
+<tr><th>{{.L.ScanID}}</th><td>{{.Scan.ID}}</td></tr>
+<tr><th>{{.L.Type}}</th><td>{{.L.Kind .Scan.Kind}}</td></tr>
+<tr><th>{{.L.Status}}</th><td>{{.L.StatusName .Scan.Status}}</td></tr>
+<tr><th>{{.L.Submitted}}</th><td>{{formatTime .Scan.CreatedAt}}</td></tr>
+<tr><th>{{.L.Started}}</th><td>{{formatTimePtr .Scan.StartedAt}}</td></tr>
+<tr><th>{{.L.Completed}}</th><td>{{formatTimePtr .Scan.CompletedAt}}</td></tr>
+<tr><th>{{.L.Duration}}</th><td>{{formatDuration .Scan.Duration}}</td></tr>
+</table>
+
+<h2>{{.L.SectionSummary}}</h2>
+<div class="cards">
+<div class="card"><b>{{.L.Risk .Summary}}</b><span>{{.L.OverallAssessment}}</span></div>
+<div class="card"><b>{{.Summary.Total}}</b><span>{{.L.Checks}}</span></div>
+<div class="card"><b class="pass">{{.Summary.Passed}}</b><span>{{.L.Passed}}</span></div>
+<div class="card"><b class="fail">{{.Summary.Failed}}</b><span>{{.L.Failed}}</span></div>
+</div>
+<table>
+<tr><th>{{.L.SeverityLabel}}</th><th>{{.L.FailedChecks}}</th></tr>
+{{range .Summary.BySeverity}}<tr><td><span class="badge sev-{{.Severity}}">{{$.L.Severity .Severity}}</span></td><td>{{.Count}}</td></tr>
+{{end}}</table>
+
+<h2>{{.L.SectionFindings}}</h2>
+{{if .L.EngineNote}}<p class="note">{{.L.EngineNote}}</p>{{end}}
+{{if not .Findings}}<p class="note">{{.L.NoFindings}}</p>{{end}}
+{{range .Findings}}<section class="finding">
+<h3><span class="badge sev-{{.Severity}}">{{$.L.Severity .Severity}}</span><span lang="en">{{.TestName}}</span><span class="{{if .Passed}}pass{{else}}fail{{end}}">{{$.L.ResultOf .}}</span></h3>
+<div class="rule">{{.RuleID}}</div>
+{{if .Message}}<p lang="en">{{.Message}}</p>{{end}}
+{{if .Details}}<details><summary>{{$.L.TechnicalDetails}}</summary><pre>{{.Details}}</pre>{{if .DetailsTruncated}}<p class="note">{{$.L.DetailsTruncated}}</p>{{end}}</details>{{end}}
+</section>
+{{end}}
+<footer>{{.L.GeneratedOn .Document}} {{.L.Disclaimer}}</footer>
+</main>
+</body>
+</html>

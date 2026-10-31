@@ -53,6 +53,7 @@ const (
 	CodeScanNotFound     Code = "SCAN_NOT_FOUND"
 	CodeNoValidTests     Code = "NO_VALID_TESTS"
 	CodeQueueUnavailable Code = "QUEUE_UNAVAILABLE"
+	CodeScanNotFinished  Code = "SCAN_NOT_FINISHED"
 
 	CodeUserNotFound    Code = "USER_NOT_FOUND"
 	CodeAdminSelfAction Code = "ADMIN_SELF_ACTION"
@@ -108,6 +109,7 @@ var codeTable = map[Code]codeInfo{
 	CodeScanNotFound:     {http.StatusNotFound, "Scan not found"},
 	CodeNoValidTests:     {http.StatusBadRequest, "No valid tests provided"},
 	CodeQueueUnavailable: {http.StatusServiceUnavailable, "Scan queue is unavailable, try again later"},
+	CodeScanNotFinished:  {http.StatusConflict, "Scan has not finished yet"},
 
 	CodeUserNotFound:    {http.StatusNotFound, "User not found"},
 	CodeAdminSelfAction: {http.StatusConflict, "Administrators cannot change their own role or delete their own account here"},

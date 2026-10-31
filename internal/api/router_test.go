@@ -461,6 +461,7 @@ func TestProtectedRoutesRequireAToken(t *testing.T) {
 		{http.MethodGet, "/api/auth/me"},
 		{http.MethodDelete, "/api/auth/account"},
 		{http.MethodGet, "/api/users/scans"},
+		{http.MethodGet, "/api/scans/" + uuid.NewString() + "/report"},
 		{http.MethodGet, "/api/admin/widgets"},
 		{http.MethodPatch, "/api/utils/profile/email"},
 	} {
@@ -505,15 +506,18 @@ func TestStrictTransportSecurityFollowsCookieSecure(t *testing.T) {
 	}
 }
 
-func TestResponsesExposeRetryAfter(t *testing.T) {
+func TestResponsesExposeRetryAfterAndContentDisposition(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	req.Header.Set("Origin", frontendOrigin)
 
 	w := httptest.NewRecorder()
 	testRouter(t).ServeHTTP(w, req)
 
-	if got := w.Header().Get("Access-Control-Expose-Headers"); !strings.Contains(got, "Retry-After") {
-		t.Errorf("Access-Control-Expose-Headers = %q, want it to contain Retry-After", got)
+	// Content-Disposition niesie nazwę pliku pobieranego raportu.
+	for _, header := range []string{"Retry-After", "Content-Disposition"} {
+		if got := w.Header().Get("Access-Control-Expose-Headers"); !strings.Contains(got, header) {
+			t.Errorf("Access-Control-Expose-Headers = %q, want it to contain %s", got, header)
+		}
 	}
 }
 

@@ -45,7 +45,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		AllowOrigins:     []string{cfg.PublicBaseURL},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length", "Retry-After"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", "Retry-After"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -59,6 +59,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	{
 		public.POST("/freescans", scanHandler.HandleScanSubmission)
 		public.GET("/freescans/:id", scanHandler.HandleGetScan)
+		public.GET("/freescans/:id/report", scanHandler.HandleFreeScanReport)
 		public.GET("/health", scanHandler.HandleHealthCheck)
 	}
 
@@ -83,6 +84,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/auth/me", authHandler.Me)
 		protected.POST("/scans", scanHandler.HandlePremiumScanSubmission)
 		protected.GET("/scans/:id", scanHandler.HandlePremiumGetScan)
+		protected.GET("/scans/:id/report", scanHandler.HandlePremiumScanReport)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
 		protected.GET("/users/widgets", scanHandler.HandleUserDashboardWidgets)
 		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
