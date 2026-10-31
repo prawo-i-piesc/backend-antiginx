@@ -35,6 +35,7 @@ graph TD
 | `internal/results/` | Results queue contract, batched consumers and storage |
 | `internal/handlers/auth*_handler.go` | Registration, sessions, MFA, OAuth, passkeys, account operations |
 | `internal/handlers/admin_handler.go` | Admin database and dashboard endpoints |
+| `internal/billing/`, `internal/handlers/billing_handler.go` | Pro plan: Stripe Checkout, customer portal, subscription sync and webhook |
 | `internal/models/` | Database models and JSON scan result types |
 | `internal/auth/`, `middleware/` | Tokens, sessions, password policies, bearer and origin checks |
 
@@ -43,6 +44,7 @@ graph TD
 - [Configuration](./Configuration.md) — environment, startup and deployment.
 - [Scans and results](./Scans.md) — endpoints, task payload and results queue contract.
 - [Authentication and account API](./Auth.md) — JWT, refresh sessions, MFA, OAuth, WebAuthn and admin routes.
+- [Billing](./Billing.md) — the Pro plan, Stripe setup and how subscription state is kept current.
 - [Quick Start](../QuickStart/QuickStart.md) — local, Docker and Compose instructions.
 
 !!! warning "Integration boundary"

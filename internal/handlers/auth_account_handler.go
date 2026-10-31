@@ -53,6 +53,12 @@ func (h *AuthHandler) HandleDeleteAccount(c *gin.Context) {
 		}
 	}
 
+	if err := h.billing.CloseAccount(c.Request.Context(), user.ID); err != nil {
+		log.Printf("DeleteAccount: nie udało się zamknąć płatności konta %s: %v", user.ID, err)
+		httpx.Fail(c, httpx.CodeBillingUnavailable)
+		return
+	}
+
 	if err := h.deleteAccount(user.ID); err != nil {
 		log.Printf("DeleteAccount: nie udało się usunąć konta %s: %v", user.ID, err)
 		httpx.Fail(c, httpx.CodeInternal)
@@ -88,6 +94,7 @@ func deleteUserCascade(db *gorm.DB, userID uuid.UUID) error {
 		}
 
 		for _, owned := range []any{
+			&models.Subscription{},
 			&models.Session{},
 			&models.RecoveryCode{},
 			&models.OAuthAccount{},

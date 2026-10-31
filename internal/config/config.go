@@ -29,6 +29,8 @@ const (
 	DefaultResultBatchSize = 50
 )
 
+const DefaultStripeSyncInterval = time.Hour
+
 const (
 	MailTransportResend = "resend"
 	MailTransportLog    = "log"
@@ -69,6 +71,17 @@ type Config struct {
 	MailTransport string
 	MailFrom      string
 	ResendAPIKey  string
+
+	StripeSecretKey     string
+	StripeProPriceID    string
+	StripeWebhookSecret string
+	StripeSyncInterval  time.Duration
+}
+
+// BillingEnabled mówi, czy można sprzedawać Pro. Bez kluczy Stripe wszyscy są
+// na planie Free, a endpointy płatności odpowiadają BILLING_DISABLED.
+func (c *Config) BillingEnabled() bool {
+	return c.StripeSecretKey != "" && c.StripeProPriceID != ""
 }
 
 func (c *Config) GoogleEnabled() bool {
@@ -153,6 +166,11 @@ func Load() (*Config, error) {
 		problems = append(problems, fmt.Sprintf("MAIL_TRANSPORT must be resend, log or none, got %q", cfg.MailTransport))
 	}
 
+	cfg.StripeSecretKey = strings.TrimSpace(os.Getenv("STRIPE_SECRET_KEY"))
+	cfg.StripeProPriceID = strings.TrimSpace(os.Getenv("STRIPE_PRO_PRICE_ID"))
+	cfg.StripeWebhookSecret = strings.TrimSpace(os.Getenv("STRIPE_WEBHOOK_SECRET"))
+	problems = append(problems, stripeProblems(cfg)...)
+
 	secure, err := envBool("COOKIE_SECURE", true)
 	if err != nil {
 		problems = append(problems, err.Error())
@@ -167,6 +185,10 @@ func Load() (*Config, error) {
 	}
 
 	if cfg.TrustedProxies, err = envProxies("TRUSTED_PROXIES"); err != nil {
+		problems = append(problems, err.Error())
+	}
+
+	if cfg.StripeSyncInterval, err = envDuration("STRIPE_SYNC_INTERVAL", DefaultStripeSyncInterval); err != nil {
 		problems = append(problems, err.Error())
 	}
 
@@ -208,6 +230,31 @@ func normalizeOrigin(raw string) (string, error) {
 		return "", fmt.Errorf("must be a bare origin, without path, query or fragment")
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host), nil
+}
+
+// stripeProblems sprawdza prefiksy, bo pomylenie klucza publicznego z
+// sekretnym albo ID produktu z ID ceny wychodzi inaczej dopiero przy pierwszej
+// płatności.
+func stripeProblems(cfg *Config) []string {
+	var problems []string
+	if (cfg.StripeSecretKey == "") != (cfg.StripeProPriceID == "") {
+		problems = append(problems, "STRIPE_SECRET_KEY and STRIPE_PRO_PRICE_ID must be set together")
+	}
+	if cfg.StripeSecretKey != "" && !strings.HasPrefix(cfg.StripeSecretKey, "sk_") && !strings.HasPrefix(cfg.StripeSecretKey, "rk_") {
+		problems = append(problems, "STRIPE_SECRET_KEY must be a secret (sk_) or restricted (rk_) key")
+	}
+	if cfg.StripeProPriceID != "" && !strings.HasPrefix(cfg.StripeProPriceID, "price_") {
+		problems = append(problems, "STRIPE_PRO_PRICE_ID must be a price ID (price_...), not a product ID")
+	}
+	if cfg.StripeWebhookSecret != "" {
+		if cfg.StripeSecretKey == "" {
+			problems = append(problems, "STRIPE_WEBHOOK_SECRET requires STRIPE_SECRET_KEY")
+		}
+		if !strings.HasPrefix(cfg.StripeWebhookSecret, "whsec_") {
+			problems = append(problems, "STRIPE_WEBHOOK_SECRET must be a webhook signing secret (whsec_...)")
+		}
+	}
+	return problems
 }
 
 func defaultMailTransport(apiKey string) string {

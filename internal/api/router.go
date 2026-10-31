@@ -21,7 +21,7 @@ var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
 const maxRequestBody = 1 << 20
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, cfg *config.Config, probes []Probe) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, cfg *config.Config, probes []Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
@@ -160,6 +160,18 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	{
 		mailProtected.POST("/email/verify/request", authHandler.HandleEmailVerificationRequest)
 	}
+
+	billing := r.Group("/api/billing")
+	billing.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		billing.GET("", billingHandler.HandleStatus)
+		billing.POST("/checkout", billingHandler.HandleCheckout)
+		billing.POST("/portal", billingHandler.HandlePortal)
+		billing.POST("/sync", billingHandler.HandleSync)
+	}
+
+	// Stripe nie ma sesji ani Origin; tożsamość potwierdza podpis zdarzenia.
+	r.POST("/api/billing/webhook", billingHandler.HandleWebhook)
 
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))

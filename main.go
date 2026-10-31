@@ -32,6 +32,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/prawo-i-piesc/backend/internal/api"
 	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
@@ -80,7 +81,7 @@ func main() {
 	}
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
-	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 
@@ -120,12 +121,20 @@ func main() {
 
 	log.Println("RabbitMQ queues successfully configured")
 
+	var stripeGateway billing.Gateway
+	if cfg.BillingEnabled() {
+		stripeGateway = billing.NewStripeGateway(cfg.StripeSecretKey)
+		log.Println("Płatności Stripe włączone")
+	}
+	billingService := billing.New(db, stripeGateway, cfg.StripeProPriceID, cfg.PublicBaseURL)
+
 	scanHandler := handlers.NewScanHandler(ch, db)
-	authHandler, err := handlers.NewAuthHandler(db, cfg)
+	authHandler, err := handlers.NewAuthHandler(db, cfg, billingService)
 	if err != nil {
 		log.Fatalf("Nie udało się zainicjalizować obsługi uwierzytelniania: %v", err)
 	}
-	adminHandler := handlers.NewAdminHandler(db, auth.NewSessionService(db, cfg.RefreshTokenTTL))
+	adminHandler := handlers.NewAdminHandler(db, auth.NewSessionService(db, cfg.RefreshTokenTTL), billingService)
+	billingHandler := handlers.NewBillingHandler(db, billingService, cfg.StripeWebhookSecret)
 
 	probes := []api.Probe{
 		{Name: "db", Check: sqlDB.PingContext},
@@ -139,7 +148,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":4000",
-		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, cfg, probes),
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, cfg, probes),
 		MaxHeaderBytes:    64 << 10,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -163,6 +172,12 @@ func main() {
 	}()
 	log.Printf("Odbieram wyniki z %s (%d odbiorców, paczki po %d)", cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
 
+	billingDone := make(chan struct{})
+	go func() {
+		defer close(billingDone)
+		billingService.Run(ctx, cfg.StripeSyncInterval)
+	}()
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Could not start server: %v", err)
@@ -180,6 +195,7 @@ func main() {
 		log.Printf("Serwer nie zamknął się w wyznaczonym czasie: %v", err)
 	}
 	<-consumerDone
+	<-billingDone
 }
 
 // declareTopology deklaruje kolejki, z których korzysta daemon. Daemon sam

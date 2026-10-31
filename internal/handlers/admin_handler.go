@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
@@ -16,6 +17,7 @@ import (
 type AdminHandler struct {
 	db       *gorm.DB
 	sessions *auth.SessionService
+	billing  *billing.Service
 }
 
 type DashboardScan struct {
@@ -26,10 +28,11 @@ type DashboardScan struct {
 	Type      string    `json:"type"` // "free" lub "premium"
 }
 
-func NewAdminHandler(db *gorm.DB, sessions *auth.SessionService) *AdminHandler {
+func NewAdminHandler(db *gorm.DB, sessions *auth.SessionService, billingService *billing.Service) *AdminHandler {
 	return &AdminHandler{
 		db:       db,
 		sessions: sessions,
+		billing:  billingService,
 	}
 }
 
