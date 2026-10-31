@@ -128,10 +128,10 @@ Email verification links target the frontend `/verify-email?token=...` and expir
 | `PATCH` | `/api/admin/users/:id/role` | JSON `{"role":"admin"}` or `{"role":"user"}`; returns the updated summary. |
 | `POST` | `/api/admin/users/:id/logout` | Revokes every refresh session of the account (`204`). |
 | `DELETE` | `/api/admin/users/:id` | Deletes the account with the same cascade as `DELETE /api/auth/account` (`204`). |
-| `GET` | `/api/admin/scans?type=&status=&limit=&offset=` | Free and premium scans together, newest first. `type` is `free` or `premium`, `status` one of `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`. Premium rows carry `user_id`. |
+| `GET` | `/api/admin/scans?type=&status=&user_id=&q=&limit=&offset=` | Free and premium scans together, newest first. `type` is `free` or `premium`, `status` one of `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`. `user_id` keeps one account's scans, which leaves only premium ones; `q` matches part of the target URL (case-insensitive substring). Premium rows carry `user_id` and, while the account exists, `user_email`. |
+| `GET` | `/api/admin/scans/:id` | Any scan, free or premium and whoever owns it: the row fields plus `started_at`, `completed_at` and `results` (an empty list until the engine reports). |
 | `DELETE` | `/api/admin/scans/:id` | Deletes a free or premium scan with its results (`204`). |
 | `GET` | `/api/admin/widgets` | Admin dashboard widgets. |
-| `GET` | `/api/admin/database?table=users\|scans\|premium_scans` | **Deprecated**, sends `Deprecation: true`. Dumps a whole table without paging; kept only until the admin panel moves to `/users` and `/scans`. |
 
 These routes require an access JWT **and** `RequireAdmin`, which reads the role from the database on every request rather than trusting the role claim, so a demotion takes effect immediately. Registration assigns the ordinary `user` role.
 

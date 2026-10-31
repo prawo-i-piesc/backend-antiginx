@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"sort"
 	"time"
@@ -9,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/billing"
-	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -34,44 +32,6 @@ func NewAdminHandler(db *gorm.DB, sessions *auth.SessionService, billingService 
 		sessions: sessions,
 		billing:  billingService,
 	}
-}
-
-// HandleGetDatabaseInfo zrzuca całą tabelę bez stronicowania. Zostaje tylko do
-// czasu, aż panel admina przejdzie na /api/admin/users i /api/admin/scans.
-//
-// Deprecated: użyj GET /api/admin/users i GET /api/admin/scans.
-func (h *AdminHandler) HandleGetDatabaseInfo(c *gin.Context) {
-	c.Header("Deprecation", "true")
-
-	var (
-		rows any
-		err  error
-	)
-
-	switch c.Query("table") {
-	case "users":
-		var users []models.User
-		err = h.db.Find(&users).Error
-		rows = users
-	case "scans":
-		var scans []models.Scan
-		err = h.db.Preload("Results").Find(&scans).Error
-		rows = scans
-	case "premium_scans":
-		var premiumScans []models.PremiumScan
-		err = h.db.Preload("Results").Find(&premiumScans).Error
-		rows = premiumScans
-	default:
-		httpx.FailWithFields(c, httpx.CodeValidationFailed, map[string]string{"table": "oneof:users scans premium_scans"})
-		return
-	}
-
-	if err != nil {
-		log.Printf("AdminDatabase: nie udało się pobrać tabeli %q: %v", c.Query("table"), err)
-		httpx.Fail(c, httpx.CodeInternal)
-		return
-	}
-	c.JSON(http.StatusOK, rows)
 }
 
 func (h *AdminHandler) HandleGetDashboardWidgets(c *gin.Context) {

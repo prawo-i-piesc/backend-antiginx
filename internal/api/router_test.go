@@ -669,12 +669,18 @@ func TestProbesIgnoreCORS(t *testing.T) {
 	}
 }
 
-func TestAdminHealthIsGone(t *testing.T) {
-	w := httptest.NewRecorder()
-	testRouter(t).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/admin/health", nil))
+func TestRemovedAdminRoutesAreGone(t *testing.T) {
+	r := testRouter(t)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("status = %d, want 404", w.Code)
+	for _, path := range []string{"/api/admin/health", "/api/admin/database?table=users"} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+
+			if w.Code != http.StatusNotFound {
+				t.Errorf("status = %d, want 404", w.Code)
+			}
+		})
 	}
 }
 
@@ -688,8 +694,8 @@ var adminRoutes = []struct {
 	{http.MethodPost, "/api/admin/users/" + uuid.NewString() + "/logout"},
 	{http.MethodDelete, "/api/admin/users/" + uuid.NewString()},
 	{http.MethodGet, "/api/admin/scans"},
+	{http.MethodGet, "/api/admin/scans/" + uuid.NewString()},
 	{http.MethodDelete, "/api/admin/scans/" + uuid.NewString()},
-	{http.MethodGet, "/api/admin/database?table=users"},
 	{http.MethodGet, "/api/admin/widgets"},
 }
 

@@ -35,6 +35,8 @@ type adminUsersQuery struct {
 type adminScansQuery struct {
 	Type   string `form:"type" json:"type" binding:"omitempty,oneof=free premium"`
 	Status string `form:"status" json:"status" binding:"omitempty,oneof=PENDING RUNNING COMPLETED FAILED"`
+	UserID string `form:"user_id" json:"user_id" binding:"omitempty,uuid"`
+	Q      string `form:"q" json:"q" binding:"max=2048"`
 	adminPage
 }
 
@@ -70,8 +72,35 @@ type adminScanRow struct {
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"created_at"`
 	UserID    *uuid.UUID `json:"user_id,omitempty"`
-	Type      string     `json:"type"`
+	// Adres właściciela, żeby panel nie pokazywał samego UUID. Brak przy
+	// skanie darmowym i przy premium, którego konta już nie ma.
+	UserEmail *string `json:"user_email,omitempty"`
+	Type      string  `json:"type"`
 }
+
+// adminScanDetails to jeden skan dowolnego rodzaju razem z wynikami, bez
+// względu na to, czyj jest.
+type adminScanDetails struct {
+	ID          uuid.UUID           `json:"id"`
+	TargetURL   string              `json:"target_url"`
+	Status      string              `json:"status"`
+	Type        string              `json:"type"`
+	UserID      *uuid.UUID          `json:"user_id,omitempty"`
+	UserEmail   *string             `json:"user_email,omitempty"`
+	CreatedAt   time.Time           `json:"created_at"`
+	StartedAt   *time.Time          `json:"started_at"`
+	CompletedAt *time.Time          `json:"completed_at"`
+	Results     []models.ScanResult `gorm:"-" json:"results"`
+}
+
+// Kolumny wspólne dla obu tabel skanów, w kolejności adminScanRow i
+// adminScanDetails; alias s to tabela skanów, u — konto właściciela.
+const (
+	freeScanColumns    = "s.id, s.target_url, s.status, s.created_at, NULL AS user_id, NULL AS user_email, 'free' AS type"
+	premiumScanColumns = "s.id, s.target_url, s.status, s.created_at, s.user_id, u.email AS user_email, 'premium' AS type"
+	freeScanFrom       = "scans s"
+	premiumScanFrom    = "premium_scans s LEFT JOIN users u ON u.id = s.user_id"
+)
 
 // auditAdmin zostawia jedną linię na każdą zapisującą operację administratora.
 // Tabeli audytu nie ma — linia w logu wystarcza, dopóki nie trzeba w niej
@@ -288,23 +317,47 @@ func (h *AdminHandler) HandleListScans(c *gin.Context) {
 	}
 	query.normalize()
 
+	var where []string
+	var whereArgs []any
+	if query.Status != "" {
+		where = append(where, "s.status = ?")
+		whereArgs = append(whereArgs, query.Status)
+	}
+	if query.UserID != "" {
+		// Walidator przepuścił tylko poprawny UUID.
+		owner, _ := uuid.Parse(query.UserID)
+		where = append(where, "s.user_id = ?")
+		whereArgs = append(whereArgs, owner)
+	}
+	if q := strings.TrimSpace(query.Q); q != "" {
+		where = append(where, `lower(s.target_url) LIKE ? ESCAPE '\'`)
+		whereArgs = append(whereArgs, "%"+escapeLike(strings.ToLower(q))+"%")
+	}
+
 	var branches []string
 	var args []any
-	branch := func(sel, table string) {
-		sql := sel + " FROM " + table
-		if query.Status != "" {
-			sql += " WHERE status = ?"
-			args = append(args, query.Status)
+	branch := func(columns, from string) {
+		sql := "SELECT " + columns + " FROM " + from
+		if len(where) > 0 {
+			sql += " WHERE " + strings.Join(where, " AND ")
 		}
 		branches = append(branches, sql)
+		args = append(args, whereArgs...)
 	}
-	if query.Type != "premium" {
-		branch("SELECT id, target_url, status, created_at, NULL AS user_id, 'free' AS type", "scans")
+	// Darmowe skany nie mają właściciela, więc filtr po koncie je wyklucza.
+	if query.Type != "premium" && query.UserID == "" {
+		branch(freeScanColumns, freeScanFrom)
 	}
 	if query.Type != "free" {
-		branch("SELECT id, target_url, status, created_at, user_id, 'premium' AS type", "premium_scans")
+		branch(premiumScanColumns, premiumScanFrom)
 	}
-	union := "(" + strings.Join(branches, " UNION ALL ") + ") AS s"
+
+	scans := []adminScanRow{}
+	if len(branches) == 0 {
+		c.JSON(http.StatusOK, gin.H{"scans": scans, "total": 0, "limit": query.Limit, "offset": query.Offset})
+		return
+	}
+	union := "(" + strings.Join(branches, " UNION ALL ") + ") AS page"
 
 	var total int64
 	if err := h.db.Raw("SELECT count(*) FROM "+union, args...).Scan(&total).Error; err != nil {
@@ -313,7 +366,6 @@ func (h *AdminHandler) HandleListScans(c *gin.Context) {
 		return
 	}
 
-	scans := []adminScanRow{}
 	pageArgs := append(append([]any{}, args...), query.Limit, query.Offset)
 	if err := h.db.Raw("SELECT * FROM "+union+" ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?", pageArgs...).
 		Scan(&scans).Error; err != nil {
@@ -328,6 +380,40 @@ func (h *AdminHandler) HandleListScans(c *gin.Context) {
 		"limit":  query.Limit,
 		"offset": query.Offset,
 	})
+}
+
+func (h *AdminHandler) HandleGetScan(c *gin.Context) {
+	scanID, ok := scanIDParam(c)
+	if !ok {
+		return
+	}
+
+	var rows []adminScanDetails
+	err := h.db.Raw(
+		"SELECT "+freeScanColumns+", s.started_at, s.completed_at FROM "+freeScanFrom+" WHERE s.id = ?"+
+			" UNION ALL "+
+			"SELECT "+premiumScanColumns+", s.started_at, s.completed_at FROM "+premiumScanFrom+" WHERE s.id = ?",
+		scanID, scanID,
+	).Scan(&rows).Error
+	if err != nil {
+		log.Printf("AdminScan: nie udało się odczytać skanu %s: %v", scanID, err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+	if len(rows) == 0 {
+		httpx.Fail(c, httpx.CodeScanNotFound)
+		return
+	}
+
+	scan := rows[0]
+	scan.Results = []models.ScanResult{}
+	if err := h.db.Where("scan_id = ?", scanID).Order("id").Find(&scan.Results).Error; err != nil {
+		log.Printf("AdminScan: nie udało się odczytać wyników skanu %s: %v", scanID, err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+
+	c.JSON(http.StatusOK, scan)
 }
 
 func (h *AdminHandler) HandleDeleteScan(c *gin.Context) {
