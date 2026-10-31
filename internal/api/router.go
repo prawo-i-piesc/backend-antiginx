@@ -21,7 +21,7 @@ var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
 const maxRequestBody = 1 << 20
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, cfg *config.Config, probes []Probe) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, cfg *config.Config, probes []Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
@@ -87,6 +87,12 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/scans/:id/report", scanHandler.HandlePremiumScanReport)
 		protected.GET("/users/scans", scanHandler.HandleUserScans)
 		protected.GET("/users/widgets", scanHandler.HandleUserDashboardWidgets)
+		protected.GET("/users/stats/summary", dashboardHandler.HandleSummary)
+		protected.GET("/users/stats/risk", dashboardHandler.HandleRiskTrend)
+		protected.GET("/users/stats/severity", dashboardHandler.HandleSeverity)
+		protected.GET("/users/stats/tests", dashboardHandler.HandleTests)
+		protected.GET("/users/stats/domains", dashboardHandler.HandleDomains)
+		protected.GET("/users/preferences/:key", dashboardHandler.HandleGetPreference)
 		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
 		protected.PATCH("/utils/profile/name", authHandler.HandleUpdateFullName)
 		protected.PATCH("/utils/profile/email", authHandler.HandleUpdateEmail)
@@ -161,6 +167,12 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		mailProtected.POST("/email/verify/request", authHandler.HandleEmailVerificationRequest)
 	}
 
+	preferences := r.Group("/api/users/preferences")
+	preferences.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		preferences.PUT("/:key", dashboardHandler.HandlePutPreference)
+	}
+
 	billing := r.Group("/api/billing")
 	billing.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
 	{
@@ -177,6 +189,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	admin.Use(middleware.RequireAuth(cfg.JWTSecret), middleware.RequireAdmin(authHandler.DB()))
 	{
 		admin.GET("/widgets", adminHandler.HandleGetDashboardWidgets)
+		admin.GET("/stats/tests", adminHandler.HandleTestStats)
 
 		admin.GET("/users", adminHandler.HandleListUsers)
 		admin.GET("/users/:id", adminHandler.HandleGetUser)

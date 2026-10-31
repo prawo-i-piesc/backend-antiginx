@@ -63,6 +63,7 @@ func routerWithProbes(t *testing.T, cfg *config.Config, probes []Probe) *gin.Eng
 		authHandler,
 		handlers.NewAdminHandler(nil, nil, billingService),
 		handlers.NewBillingHandler(nil, billingService, ""),
+		handlers.NewDashboardHandler(nil),
 		cfg,
 		probes,
 	)
@@ -188,6 +189,18 @@ func TestSessionRoutesRejectForeignOrigin(t *testing.T) {
 				t.Errorf("status = %d, want 403", w.Code)
 			}
 		})
+	}
+}
+
+func TestPreferenceWritesRejectForeignOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPut, "/api/users/preferences/dashboard.widgets", nil)
+	req.Header.Set("Origin", "https://attacker.invalid")
+
+	w := httptest.NewRecorder()
+	testRouter(t).ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", w.Code)
 	}
 }
 
@@ -464,6 +477,13 @@ func TestProtectedRoutesRequireAToken(t *testing.T) {
 		{http.MethodGet, "/api/auth/me"},
 		{http.MethodDelete, "/api/auth/account"},
 		{http.MethodGet, "/api/users/scans"},
+		{http.MethodGet, "/api/users/stats/summary"},
+		{http.MethodGet, "/api/users/stats/risk"},
+		{http.MethodGet, "/api/users/stats/severity"},
+		{http.MethodGet, "/api/users/stats/tests"},
+		{http.MethodGet, "/api/users/stats/domains"},
+		{http.MethodGet, "/api/users/preferences/dashboard.widgets"},
+		{http.MethodPut, "/api/users/preferences/dashboard.widgets"},
 		{http.MethodGet, "/api/scans/" + uuid.NewString() + "/report"},
 		{http.MethodGet, "/api/admin/widgets"},
 		{http.MethodPatch, "/api/utils/profile/email"},
@@ -697,6 +717,7 @@ var adminRoutes = []struct {
 	{http.MethodGet, "/api/admin/scans/" + uuid.NewString()},
 	{http.MethodDelete, "/api/admin/scans/" + uuid.NewString()},
 	{http.MethodGet, "/api/admin/widgets"},
+	{http.MethodGet, "/api/admin/stats/tests"},
 }
 
 func TestAdminRoutesRequireAToken(t *testing.T) {
@@ -735,7 +756,7 @@ func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
 	r := NewRouter(handlers.NewScanHandler(nil, db), authHandler, handlers.NewAdminHandler(db, nil, billingService),
-		handlers.NewBillingHandler(db, billingService, ""), cfg, nil)
+		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), cfg, nil)
 
 	// Rola w tokenie kłamie: RequireAdmin ma patrzeć do bazy, nie w claim.
 	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleAdmin, time.Minute)

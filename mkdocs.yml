@@ -84,6 +84,7 @@ nav:
       - Scans and Results: Backend/Scans.md
       - Authentication and Accounts: Backend/Auth.md
       - Billing: Backend/Billing.md
+      - Dashboard Statistics: Backend/Dashboard.md
 
 copyright: "Copyright &copy; 2025 Antiginx Team. All rights reserved."
 
