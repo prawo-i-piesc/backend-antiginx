@@ -1,6 +1,6 @@
 # 🚀 Quick Start
 
-Backend-Antiginx is an HTTP API, not a scanner CLI. It stores scan requests in PostgreSQL, queues work in RabbitMQ, and accepts results from an engine worker.
+Backend-Antiginx is an HTTP API, not a scanner CLI. It stores scan requests in PostgreSQL, queues work in RabbitMQ, and reads scan results back from the daemon through RabbitMQ.
 
 ## 🧭 Choose your setup
 
@@ -60,7 +60,7 @@ curl -X POST http://localhost:4000/api/freescans \
   -d '{"target_url":"https://example.com"}'
 ```
 
-The API responds with `202 Accepted` and a `scanId`; query `GET /api/freescans/{scanId}` to see the status and results. The scan needs an **external engine worker** consuming `scan_queue` and reporting to `/api/results`. Account scans instead require a bearer JWT and a nonempty `tests` array; see [Scans and results](../Backend/Scans.md).
+The API responds with `202 Accepted` and a `scanId`; query `GET /api/freescans/{scanId}` to see the status and results. The scan needs the **daemon** consuming `scan_queue` and publishing results to the results queue. Account scans instead require a bearer JWT and a nonempty `tests` array; see [Scans and results](../Backend/Scans.md).
 
 ## 🎯 What's next?
 

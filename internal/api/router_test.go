@@ -743,38 +743,6 @@ func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
 	}
 }
 
-func TestResultsRequireTheEngineKey(t *testing.T) {
-	cfg := testConfig()
-	cfg.EngineAPIKeys = []string{"klucz-silnika"}
-	r := routerWithConfig(t, cfg)
-
-	for _, tc := range []struct {
-		key  string
-		want int
-	}{
-		{"", http.StatusForbidden},
-		{"zly-klucz", http.StatusForbidden},
-		// Poprawny klucz przechodzi bramkę; niepoprawne testId zatrzymuje
-		// żądanie dopiero w handlerze, zanim sięgnie po bazę.
-		{"klucz-silnika", http.StatusBadRequest},
-	} {
-		t.Run("key="+tc.key, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/results", strings.NewReader(`{"testId":"nie-uuid"}`))
-			req.Header.Set("Content-Type", "application/json")
-			if tc.key != "" {
-				req.Header.Set("X-Engine-Key", tc.key)
-			}
-
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-
-			if w.Code != tc.want {
-				t.Errorf("status = %d, want %d", w.Code, tc.want)
-			}
-		})
-	}
-}
-
 func TestFreeScanRejectsLoopbackTarget(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/freescans", strings.NewReader(`{"target_url":"http://127.0.0.1:15672"}`))
 	req.Header.Set("Content-Type", "application/json")

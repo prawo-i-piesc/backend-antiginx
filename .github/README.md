@@ -70,11 +70,10 @@ backend-antiginx/
 | POST | `/api/scans` | Queue an account scan with selected tests | Bearer JWT |
 | GET | `/api/scans/:id` | Retrieve your account scan and results | Bearer JWT |
 | GET | `/api/utils/tests` | List available test IDs | Bearer JWT |
-| POST | `/api/results` | Receive engine callback | `X-Engine-Key` |
 | GET | `/api/admin/users`, `/api/admin/scans` | Paged accounts and scans for the admin panel | Admin JWT |
 
 !!! warning "Deployment security"
-    Set `ENGINE_API_KEYS` in production: while it is empty, `/api/results` accepts results from anyone. Free scan details are public by ID, and scan targets must be public hosts; accept only authorized scan targets.
+    Keep RabbitMQ on a private network: results are read from the results queue, so anyone who can publish there can write scan results. Free scan details are public by ID, and scan targets must be public hosts; accept only authorized scan targets.
 
 
 <br>
@@ -87,7 +86,7 @@ backend-antiginx/
 | PostgreSQL | Running instance | Scan metadata and results storage |
 | RabbitMQ | Running instance | Required task queue, even for API startup |
 | Docker / Docker Compose | Optional | Containerized deployment |
-| Engine worker | Separate deployment | Executes scans and posts results |
+| Daemon + engine | Separate deployment | Executes scans and publishes results to RabbitMQ |
 
 
 <br>

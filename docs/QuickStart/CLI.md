@@ -73,5 +73,5 @@ curl http://localhost:4000/api/scans/<scanId> \
 | Server exits at startup | Verify required variables, PostgreSQL and RabbitMQ connectivity, and database migration permissions. |
 | `401` on `/api/scans` | Supply a valid **access** JWT as `Authorization: Bearer <token>`; the refresh cookie is not sufficient. |
 | `400` on premium scan | Supply `target_url` and at least one valid test ID in `tests`. |
-| Scan stays `PENDING` | Ensure the engine worker consumes `scan_queue` and can reach `/api/results`. |
+| Scan stays `PENDING` | Ensure the daemon consumes `scan_queue` and its `RABBITMQ_RESULTS_QUEUE` matches the backend's. |
 | Refresh cookie is not retained on local HTTP | Use `COOKIE_SECURE=false` only locally; enable `Secure` with HTTPS in production. |

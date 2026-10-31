@@ -58,7 +58,6 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	public := r.Group("/api")
 	{
 		public.POST("/freescans", scanHandler.HandleScanSubmission)
-		public.POST("/results", middleware.RequireEngineKey(cfg.EngineAPIKeys), scanHandler.HandleResultSubmission)
 		public.GET("/freescans/:id", scanHandler.HandleGetScan)
 		public.GET("/health", scanHandler.HandleHealthCheck)
 	}

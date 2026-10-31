@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
+	"github.com/prawo-i-piesc/backend/internal/results"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -47,8 +49,9 @@ var errBrokerClosed = errors.New("kanał RabbitMQ jest zamknięty")
 //  1. Loads environment variables from .env file (optional)
 //  2. Establishes connection to PostgreSQL database
 //  3. Runs database migrations for Scan and ScanResult models
-//  4. Connects to RabbitMQ and declares the scan_queue
-//  5. Initializes HTTP handlers and starts the server on port 4000
+//  4. Connects to RabbitMQ and declares scan_queue, scan_dlq and the results queue
+//  5. Starts the results queue consumers
+//  6. Initializes HTTP handlers and starts the server on port 4000
 //
 // The function will terminate with a fatal error if any critical
 // initialization step fails (database connection, RabbitMQ connection, etc.)
@@ -105,59 +108,14 @@ func main() {
 		}
 	}()
 
-	err = ch.ExchangeDeclare("main_exchange", "direct", true, false, false, false, nil)
-	if err != nil {
-		log.Fatalf("Failed to declare main_exchange: %v", err)
+	if err := declareTopology(ch, cfg.ResultsQueue); err != nil {
+		log.Fatalf("Nie udało się skonfigurować kolejek RabbitMQ: %v", err)
 	}
 
-	err = ch.ExchangeDeclare("retry_exchange", "direct", true, false, false, false, nil)
-	if err != nil {
-		log.Fatalf("Failed to declare retry_exchange: %v", err)
-	}
-
-	scanQueueArgs := amqp.Table{
-		"x-dead-letter-exchange":    "retry_exchange",
-		"x-dead-letter-routing-key": "retry_key",
-	}
-
-	scanQueue, err := ch.QueueDeclare(
-		"scan_queue",  // name
-		true,          // durable
-		false,         // delete when unused
-		false,         // exclusive
-		false,         // no-wait
-		scanQueueArgs, // arguments
-	)
-
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-	err = ch.QueueBind(scanQueue.Name, "scan_key", "main_exchange", false, nil)
-	if err != nil {
-		log.Fatalf("Failed to bind scan_queue: %v", err)
-	}
-
-	waitQueueArgs := amqp.Table{
-		"x-message-ttl":             int32(5000),
-		"x-dead-letter-exchange":    "main_exchange",
-		"x-dead-letter-routing-key": "scan_key",
-	}
-
-	waitQueue, err := ch.QueueDeclare(
-		"wait_queue",
-		true,
-		false,
-		false,
-		false,
-		waitQueueArgs,
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare wait_queue: %v", err)
-	}
-
-	err = ch.QueueBind(waitQueue.Name, "retry_key", "retry_exchange", false, nil)
-	if err != nil {
-		log.Fatalf("Failed to bind wait_queue: %v", err)
+	// Tryb potwierdzeń: bez niego handler nie zobaczy, że scan_queue odrzuciła
+	// zadanie nackiem.
+	if err := ch.Confirm(false); err != nil {
+		log.Fatalf("Nie udało się włączyć potwierdzeń publikacji: %v", err)
 	}
 
 	log.Println("RabbitMQ queues successfully configured")
@@ -192,6 +150,19 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	consumer := results.NewConsumer(conn, results.NewStore(db), cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
+	consumerDone := make(chan struct{})
+	go func() {
+		defer close(consumerDone)
+		if err := consumer.Run(ctx); err != nil {
+			// Bez odbiorców wyniki tylko by się zbierały; zamykamy proces,
+			// żeby orkiestrator postawił go od nowa z nowym połączeniem.
+			log.Printf("Odbiór wyników zatrzymany: %v", err)
+			stop()
+		}
+	}()
+	log.Printf("Odbieram wyniki z %s (%d odbiorców, paczki po %d)", cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Could not start server: %v", err)
@@ -208,4 +179,46 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Serwer nie zamknął się w wyznaczonym czasie: %v", err)
 	}
+	<-consumerDone
+}
+
+// declareTopology deklaruje kolejki, z których korzysta daemon. Daemon sam
+// niczego nie deklaruje, więc ich kształt jest ustalany tylko tutaj.
+//
+// scan_queue jest kolejką quorum: po x-delivery-limit nieudanych podejściach
+// daemona zadanie trafia przez scan_dlx do scan_dlq. Wyniki daemon publikuje
+// przez domyślny exchange z routing key równym nazwie kolejki wynikowej.
+func declareTopology(ch *amqp.Channel, resultsQueue string) error {
+	if err := ch.ExchangeDeclare("main_exchange", "direct", true, false, false, false, nil); err != nil {
+		return fmt.Errorf("main_exchange: %w", err)
+	}
+	if err := ch.ExchangeDeclare("scan_dlx", "fanout", true, false, false, false, nil); err != nil {
+		return fmt.Errorf("scan_dlx: %w", err)
+	}
+
+	scanQueueArgs := amqp.Table{
+		"x-queue-type":           "quorum",
+		"x-delivery-limit":       int32(3),
+		"x-dead-letter-exchange": "scan_dlx",
+		"x-dead-letter-strategy": "at-least-once",
+		"x-overflow":             "reject-publish", // wymagane przez at-least-once
+	}
+	if _, err := ch.QueueDeclare("scan_queue", true, false, false, false, scanQueueArgs); err != nil {
+		return fmt.Errorf("scan_queue: %w", err)
+	}
+	if err := ch.QueueBind("scan_queue", "scan_key", "main_exchange", false, nil); err != nil {
+		return fmt.Errorf("bind scan_queue: %w", err)
+	}
+
+	if _, err := ch.QueueDeclare("scan_dlq", true, false, false, false, amqp.Table{"x-queue-type": "quorum"}); err != nil {
+		return fmt.Errorf("scan_dlq: %w", err)
+	}
+	if err := ch.QueueBind("scan_dlq", "", "scan_dlx", false, nil); err != nil {
+		return fmt.Errorf("bind scan_dlq: %w", err)
+	}
+
+	if _, err := ch.QueueDeclare(resultsQueue, true, false, false, false, nil); err != nil {
+		return fmt.Errorf("%s: %w", resultsQueue, err)
+	}
+	return nil
 }

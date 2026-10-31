@@ -24,6 +24,12 @@ const totpEncryptionKeyLen = 32
 const DefaultWebAuthnRPName = "AntiGinx"
 
 const (
+	DefaultResultsQueue    = "results_queue"
+	DefaultResultConsumers = 2
+	DefaultResultBatchSize = 50
+)
+
+const (
 	MailTransportResend = "resend"
 	MailTransportLog    = "log"
 	MailTransportNone   = "none"
@@ -33,6 +39,11 @@ type Config struct {
 	DatabaseURL string
 	RabbitMQURL string
 
+	// ResultsQueue musi być tą samą nazwą, co RABBITMQ_RESULTS_QUEUE daemona.
+	ResultsQueue    string
+	ResultConsumers int
+	ResultBatchSize int
+
 	JWTSecret []byte
 
 	PublicBaseURL string
@@ -40,8 +51,6 @@ type Config struct {
 	CookieSecure bool
 
 	TrustedProxies []string
-
-	EngineAPIKeys []string
 
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
@@ -161,9 +170,12 @@ func Load() (*Config, error) {
 		problems = append(problems, err.Error())
 	}
 
-	cfg.EngineAPIKeys = envList("ENGINE_API_KEYS")
-	if len(cfg.EngineAPIKeys) == 0 {
-		log.Println("Ostrzeżenie: ENGINE_API_KEYS jest puste, POST /api/results przyjmuje wyniki od każdego")
+	cfg.ResultsQueue = envOrDefault("RABBITMQ_RESULTS_QUEUE", DefaultResultsQueue)
+	if cfg.ResultConsumers, err = envPositiveInt("RESULT_CONSUMERS", DefaultResultConsumers); err != nil {
+		problems = append(problems, err.Error())
+	}
+	if cfg.ResultBatchSize, err = envPositiveInt("RESULT_BATCH_SIZE", DefaultResultBatchSize); err != nil {
+		problems = append(problems, err.Error())
 	}
 
 	if cfg.WebAuthnRPID == "" && cfg.PublicBaseURL != "" {
@@ -259,14 +271,16 @@ func envProxies(key string) ([]string, error) {
 	return proxies, nil
 }
 
-func envList(key string) []string {
-	var values []string
-	for _, part := range strings.Split(os.Getenv(key), ",") {
-		if value := strings.TrimSpace(part); value != "" {
-			values = append(values, value)
-		}
+func envPositiveInt(key string, fallback int) (int, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback, nil
 	}
-	return values
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 {
+		return fallback, fmt.Errorf("%s must be a positive integer, got %q", key, raw)
+	}
+	return v, nil
 }
 
 func envBool(key string, fallback bool) (bool, error) {
