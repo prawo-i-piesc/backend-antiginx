@@ -83,6 +83,7 @@ nav:
       - Configuration: Backend/Configuration.md
       - Scans and Results: Backend/Scans.md
       - Authentication and Accounts: Backend/Auth.md
+      - Billing: Backend/Billing.md
 
 copyright: "Copyright &copy; 2025 Antiginx Team. All rights reserved."
 

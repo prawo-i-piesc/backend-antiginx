@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
@@ -17,7 +18,7 @@ import (
 
 func adminRouter(db *gorm.DB, adminID uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	h := NewAdminHandler(db, auth.NewSessionService(db, time.Hour))
+	h := NewAdminHandler(db, auth.NewSessionService(db, time.Hour), billing.New(db, nil, "", ""))
 
 	r := gin.New()
 	admin := r.Group("/admin", func(c *gin.Context) {

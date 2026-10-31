@@ -15,6 +15,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
@@ -51,7 +52,8 @@ func routerWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 func routerWithProbes(t *testing.T, cfg *config.Config, probes []Probe) *gin.Engine {
 	t.Helper()
 
-	authHandler, err := handlers.NewAuthHandler(nil, cfg)
+	billingService := billing.New(nil, nil, "", "")
+	authHandler, err := handlers.NewAuthHandler(nil, cfg, billingService)
 	if err != nil {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
@@ -59,7 +61,8 @@ func routerWithProbes(t *testing.T, cfg *config.Config, probes []Probe) *gin.Eng
 	return NewRouter(
 		handlers.NewScanHandler(nil, nil),
 		authHandler,
-		handlers.NewAdminHandler(nil, nil),
+		handlers.NewAdminHandler(nil, nil, billingService),
+		handlers.NewBillingHandler(nil, billingService, ""),
 		cfg,
 		probes,
 	)
@@ -716,11 +719,13 @@ func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
 		t.Fatalf("zasianie konta: %v", err)
 	}
 
-	authHandler, err := handlers.NewAuthHandler(db, cfg)
+	billingService := billing.New(db, nil, "", "")
+	authHandler, err := handlers.NewAuthHandler(db, cfg, billingService)
 	if err != nil {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
-	r := NewRouter(handlers.NewScanHandler(nil, db), authHandler, handlers.NewAdminHandler(db, nil), cfg, nil)
+	r := NewRouter(handlers.NewScanHandler(nil, db), authHandler, handlers.NewAdminHandler(db, nil, billingService),
+		handlers.NewBillingHandler(db, billingService, ""), cfg, nil)
 
 	// Rola w tokenie kłamie: RequireAdmin ma patrzeć do bazy, nie w claim.
 	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleAdmin, time.Minute)

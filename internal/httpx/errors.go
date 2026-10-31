@@ -54,6 +54,12 @@ const (
 	CodeNoValidTests     Code = "NO_VALID_TESTS"
 	CodeQueueUnavailable Code = "QUEUE_UNAVAILABLE"
 
+	CodeBillingDisabled        Code = "BILLING_DISABLED"
+	CodeBillingUnavailable     Code = "BILLING_UNAVAILABLE"
+	CodeAlreadySubscribed      Code = "ALREADY_SUBSCRIBED"
+	CodeNoBillingAccount       Code = "NO_BILLING_ACCOUNT"
+	CodeWebhookSignatureFailed Code = "WEBHOOK_SIGNATURE_INVALID"
+
 	CodeUserNotFound    Code = "USER_NOT_FOUND"
 	CodeAdminSelfAction Code = "ADMIN_SELF_ACTION"
 	CodeLastAdmin       Code = "LAST_ADMIN"
@@ -108,6 +114,12 @@ var codeTable = map[Code]codeInfo{
 	CodeScanNotFound:     {http.StatusNotFound, "Scan not found"},
 	CodeNoValidTests:     {http.StatusBadRequest, "No valid tests provided"},
 	CodeQueueUnavailable: {http.StatusServiceUnavailable, "Scan queue is unavailable, try again later"},
+
+	CodeBillingDisabled:        {http.StatusNotFound, "Payments are not enabled on this server"},
+	CodeBillingUnavailable:     {http.StatusBadGateway, "The payment provider is unavailable, try again later"},
+	CodeAlreadySubscribed:      {http.StatusConflict, "You already have an active subscription"},
+	CodeNoBillingAccount:       {http.StatusConflict, "This account has no billing history yet"},
+	CodeWebhookSignatureFailed: {http.StatusBadRequest, "Invalid webhook signature"},
 
 	CodeUserNotFound:    {http.StatusNotFound, "User not found"},
 	CodeAdminSelfAction: {http.StatusConflict, "Administrators cannot change their own role or delete their own account here"},

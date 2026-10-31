@@ -14,6 +14,7 @@ var allKeys = []string{
 	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
 	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
 	"MAIL_TRANSPORT", "MAIL_FROM", "RESEND_API_KEY",
+	"STRIPE_SECRET_KEY", "STRIPE_PRO_PRICE_ID", "STRIPE_WEBHOOK_SECRET", "STRIPE_SYNC_INTERVAL",
 }
 
 const testTOTPKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -497,6 +498,66 @@ func TestLoadRejectsNonPositiveResultSettings(t *testing.T) {
 			_, err := Load()
 			if err == nil || !strings.Contains(err.Error(), tc.key) {
 				t.Errorf("err = %v, want error naming %s", err, tc.key)
+			}
+		})
+	}
+}
+
+func TestBillingIsOffWithoutStripeKeys(t *testing.T) {
+	setEnv(t, validEnv())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BillingEnabled() {
+		t.Error("płatności włączone bez kluczy Stripe")
+	}
+	if cfg.StripeSyncInterval != DefaultStripeSyncInterval {
+		t.Errorf("StripeSyncInterval = %v", cfg.StripeSyncInterval)
+	}
+}
+
+func TestBillingTurnsOnWithKeyAndPrice(t *testing.T) {
+	env := validEnv()
+	env["STRIPE_SECRET_KEY"] = "sk_test_klucz"
+	env["STRIPE_PRO_PRICE_ID"] = "price_pro"
+	env["STRIPE_WEBHOOK_SECRET"] = "whsec_sekret"
+	env["STRIPE_SYNC_INTERVAL"] = "15m"
+	setEnv(t, env)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.BillingEnabled() || cfg.StripeWebhookSecret != "whsec_sekret" || cfg.StripeSyncInterval != 15*time.Minute {
+		t.Errorf("konfiguracja Stripe: %+v", cfg)
+	}
+}
+
+func TestStripeRejectsMixedUpValues(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{"sam klucz", map[string]string{"STRIPE_SECRET_KEY": "sk_test_klucz"}},
+		{"sama cena", map[string]string{"STRIPE_PRO_PRICE_ID": "price_pro"}},
+		{"klucz publiczny", map[string]string{"STRIPE_SECRET_KEY": "pk_test_klucz", "STRIPE_PRO_PRICE_ID": "price_pro"}},
+		{"ID produktu zamiast ceny", map[string]string{"STRIPE_SECRET_KEY": "sk_test_klucz", "STRIPE_PRO_PRICE_ID": "prod_pro"}},
+		{"webhook bez klucza", map[string]string{"STRIPE_WEBHOOK_SECRET": "whsec_sekret"}},
+		{"zły sekret webhooka", map[string]string{"STRIPE_SECRET_KEY": "sk_test_klucz", "STRIPE_PRO_PRICE_ID": "price_pro", "STRIPE_WEBHOOK_SECRET": "sk_test_klucz"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := validEnv()
+			for key, value := range tt.env {
+				env[key] = value
+			}
+			setEnv(t, env)
+
+			if _, err := Load(); err == nil {
+				t.Error("Load przyjął błędną konfigurację Stripe")
 			}
 		})
 	}

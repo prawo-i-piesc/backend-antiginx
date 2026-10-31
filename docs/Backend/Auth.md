@@ -23,7 +23,7 @@ CORS allows credentials only from `PUBLIC_BASE_URL`. Set this to the frontend or
 | `POST` | `/api/auth/refresh` | Origin-restricted | Reads the `ag_session` refresh cookie, rotates it, and returns a new access token (`200`). No bearer token required. |
 | `POST` | `/api/auth/logout` | Origin + JWT | Optional JSON `{"all_devices":true}` revokes all refresh sessions; otherwise revokes the session identified by the cookie, if supplied. Clears the cookie (`204`). |
 | `DELETE` | `/api/auth/account` | Origin + JWT | Deletes the account (`204`); JSON may contain `password`, `method`, `code`. Password is checked if the account has one; TOTP-enabled accounts also need a TOTP or recovery code. May first return `mfa_required`. |
-| `GET` | `/api/auth/me` | JWT | Returns profile and auth state (`id`, `full_name`, `email`, `role`, `created_at`, plus `auth.password_set`, `email_verified`, `providers`, `passkey_mode`, and MFA status). |
+| `GET` | `/api/auth/me` | JWT | Returns profile and auth state (`id`, `full_name`, `email`, `role`, `plan` (`free` or `pro`, see [Billing](./Billing.md)), `created_at`, plus `auth.password_set`, `email_verified`, `providers`, `passkey_mode`, and MFA status). |
 
 Passwords must contain at least **12 Unicode characters** and must not appear on the built-in common-password list. Emails are normalized before lookup/storage; passwords are stored as bcrypt hashes. Registration does **not** wait for email verification before issuing a session.
 
