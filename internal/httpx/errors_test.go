@@ -46,6 +46,7 @@ var specStatuses = map[Code]int{
 	CodeScanNotFound:               http.StatusNotFound,
 	CodeNoValidTests:               http.StatusBadRequest,
 	CodeQueueUnavailable:           http.StatusServiceUnavailable,
+	CodeScanNotFinished:            http.StatusConflict,
 	CodeBillingDisabled:            http.StatusNotFound,
 	CodeBillingUnavailable:         http.StatusBadGateway,
 	CodeAlreadySubscribed:          http.StatusConflict,

@@ -11,8 +11,10 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `GET` | `/api/health` | Public | Kept for compatibility: `200` with `{"message":"Running..."}`, no dependencies checked. |
 | `POST` | `/api/freescans` | Public | Start a scan with all configured test IDs. |
 | `GET` | `/api/freescans/:id` | Public | Fetch a free scan with results by UUID. |
+| `GET` | `/api/freescans/:id/report` | Public | Download a free scan report (PDF, HTML, Markdown or SARIF). |
 | `POST` | `/api/scans` | Bearer access JWT | Start an account scan with selected tests. |
 | `GET` | `/api/scans/:id` | Bearer access JWT | Fetch the current user's account scan. |
+| `GET` | `/api/scans/:id/report` | Bearer access JWT | Download a report of the current user's account scan. |
 | `GET` | `/api/users/scans` | Bearer access JWT | List the current user's premium scans with results. |
 | `GET` | `/api/users/widgets` | Bearer access JWT | Counts (`total_scans`, `detected_threats`, `safe_sites`) and up to four `recent_scans`. |
 | `GET` | `/api/utils/tests` | Bearer access JWT | Grouped test IDs available to premium scans. |
@@ -59,6 +61,48 @@ Supported test IDs (also returned, grouped, by `GET /api/utils/tests`):
 | Vulnerabilities & Code Analysis | `js-obf`, `phishing-url`, `dns-reputation`, `favicon-origin`, `credential-form` |
 
 Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different user receives `404`. `GET /api/users/scans` returns that user's scan list, while `GET /api/users/widgets` returns dashboard aggregates.
+
+## 📄 Scan reports
+
+```http
+GET /api/scans/<uuid>/report?format=pdf&lang=pl
+Authorization: Bearer <access_token>
+```
+
+A report can be generated for any finished scan, whether it was just completed or is taken from the scan history (`GET /api/users/scans`). It is built on request from the stored results; nothing is cached or saved. `GET /api/freescans/<uuid>/report` serves free scans and, like the free scan itself, is public by UUID. The account route only serves the scan's owner: another user's scan, or a free scan's UUID, returns `404 SCAN_NOT_FOUND`.
+
+`format` selects the output; it defaults to `pdf`. `lang` selects the language of the report's labels: `en` (default) or `pl`; a region suffix such as `pl-PL` is accepted, so the frontend can pass its interface language as is. Test names, messages and metadata come from the engine and stay in English in both languages; the Polish report says so above the findings, and the HTML report marks that text `lang="en"` for screen readers. SARIF is meant for tools and is identical in both languages.
+
+| `format` | `Content-Type` | Contents |
+| --- | --- | --- |
+| `pdf` | `application/pdf` | A4 document for printing and sharing. |
+| `html` | `text/html; charset=utf-8` | Self-contained page: inline styles, no scripts, no external resources. |
+| `md` (or `markdown`) | `text/markdown; charset=utf-8` | CommonMark with GFM tables, for tickets and repositories. |
+| `sarif` | `application/sarif+json` | [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log for security tooling. |
+
+The response is a download: `Content-Disposition: attachment; filename=antiginx-report-<uuid>.<ext>` (exposed to the frontend through CORS) and `Cache-Control: no-store`. Because the account route needs the bearer token, the frontend fetches the file and saves the resulting blob; a plain link cannot carry the header.
+
+Every format renders the same document:
+
+- **Scan**: target, scan ID, type (free or account), status, submission, start and completion times, duration.
+- **Summary**: checks run, passed and failed, failed checks per severity (`Critical`, `High`, `Medium`, `Low`) and an overall assessment equal to the most severe failed check.
+- **Findings**: failed checks first, most severe first, then passed checks. Each finding has the test name, a rule ID derived from it (`HSTS Header Analysis` → `hsts-header-analysis`), severity, result, message and the formatted `metadata`. The PDF, HTML and Markdown reports cut metadata at 8 KiB per finding; SARIF carries it in full. Results stored twice by an at-least-once redelivery are counted once.
+
+Scan text such as messages and metadata comes from the scanned site, so the HTML report escapes it and the Markdown report backslash-escapes link, image, HTML and block syntax, keeping a hostile page from injecting content into the report.
+
+### SARIF mapping
+
+The SARIF log has one run whose `tool.driver` is `AntiGinx`. Each test becomes a rule and each finding a result:
+
+| Finding | `kind` | `level` | rule `security-severity` |
+| --- | --- | --- | --- |
+| Failed `Critical` | `fail` | `error` | `9.5` |
+| Failed `High` | `fail` | `error` | `8.0` |
+| Failed `Medium` | `fail` | `warning` | `5.5` |
+| Failed `Low` / `Info` / `None` | `fail` | `note` | `2.0` / none / none |
+| Passed | `pass` | `none` | — |
+
+A rule's `defaultConfiguration.level` and `security-severity` come from its most severe failed result. Each result's location is the scanned URL (`physicalLocation.artifactLocation.uri`), and `partialFingerprints["antiginx/v1"]` is a hash of the target and rule ID, so tools can match the same issue across scans. `automationDetails.id` is `antiginx/<free|premium>/<scanId>`; `guid` is left out because SARIF only allows UUID versions 1–5 there and scans use UUIDv7. `invocations[0].executionSuccessful` is true only for `COMPLETED` scans. Result `properties` hold `severity`, `passed`, `testName` and the original `metadata`; run `properties` hold the scan details and summary.
 
 ## 🐰 Worker task
 
@@ -115,4 +159,5 @@ Delivery is at-least-once: a result saved right before the connection dropped ca
 - Every error uses the shared `{"error","code","fields"}` shape. Malformed scan UUIDs produce `400 VALIDATION_FAILED` with `fields.id = "invalid"`; missing scans produce `404 SCAN_NOT_FOUND`; malformed JSON or absent required fields produce `400 VALIDATION_FAILED`.
 - `target_url` must use `http` or `https`, carry no credentials and name a public host. Rejected values return `400 VALIDATION_FAILED` with `fields.target_url` set to `invalid` (not a usable URL) or `not_public` (loopback, private, CGNAT, link-local or multicast address, single-label name, or an internal suffix such as `.local`, `.internal`, `.svc`). The check does not resolve DNS, so it cannot stop a public name pointing at a private address; that belongs in the engine's egress policy. Target ownership is not verified: restrict submissions to authorized testing.
 - Queue publishing failures return `503 QUEUE_UNAVAILABLE` and mark the scan `FAILED`. `202` means accepted/queued, **not** completed.
+- Reports are only generated for finished scans: a `PENDING` or `RUNNING` scan returns `409 SCAN_NOT_FINISHED`, while a `FAILED` scan gets a report with whatever results arrived. An unknown `format` or `lang` returns `400 VALIDATION_FAILED` with `fields.format = "oneof:pdf html md sarif"` and/or `fields.lang = "oneof:en pl"`, both in one response.
 - Free scan data is publicly retrievable by its UUID. Keep sensitive targets out of public scans.

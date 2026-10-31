@@ -53,6 +53,7 @@ const (
 	CodeScanNotFound     Code = "SCAN_NOT_FOUND"
 	CodeNoValidTests     Code = "NO_VALID_TESTS"
 	CodeQueueUnavailable Code = "QUEUE_UNAVAILABLE"
+	CodeScanNotFinished  Code = "SCAN_NOT_FINISHED"
 
 	CodeBillingDisabled        Code = "BILLING_DISABLED"
 	CodeBillingUnavailable     Code = "BILLING_UNAVAILABLE"
@@ -114,6 +115,7 @@ var codeTable = map[Code]codeInfo{
 	CodeScanNotFound:     {http.StatusNotFound, "Scan not found"},
 	CodeNoValidTests:     {http.StatusBadRequest, "No valid tests provided"},
 	CodeQueueUnavailable: {http.StatusServiceUnavailable, "Scan queue is unavailable, try again later"},
+	CodeScanNotFinished:  {http.StatusConflict, "Scan has not finished yet"},
 
 	CodeBillingDisabled:        {http.StatusNotFound, "Payments are not enabled on this server"},
 	CodeBillingUnavailable:     {http.StatusBadGateway, "The payment provider is unavailable, try again later"},
