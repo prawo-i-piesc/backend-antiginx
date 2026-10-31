@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ func adminRouter(db *gorm.DB, adminID uuid.UUID) *gin.Engine {
 	admin.POST("/users/:id/logout", h.HandleLogoutUser)
 	admin.DELETE("/users/:id", h.HandleDeleteUser)
 	admin.GET("/scans", h.HandleListScans)
+	admin.GET("/scans/:id", h.HandleGetScan)
 	admin.DELETE("/scans/:id", h.HandleDeleteScan)
 	return r
 }
@@ -279,6 +281,124 @@ func TestAdminListScansMergesFreeAndPremium(t *testing.T) {
 
 	if w := get(t, r, "/admin/scans?status=DONE"); w.Code != http.StatusBadRequest {
 		t.Errorf("nieznany status: %d, want 400", w.Code)
+	}
+}
+
+func TestAdminListScansFiltersByOwnerAndAddress(t *testing.T) {
+	db := testDB(t)
+	base := time.Now().Add(-time.Hour)
+	adminID := seedUser(t, db, "admin@example.com", "Admin", models.UserRoleAdmin, base)
+	janID := seedUser(t, db, "jan@example.com", "Jan", models.UserRoleUser, base)
+
+	janShop, janBlog, adminShop, freeShop := newID(t), newID(t), newID(t), newID(t)
+	seedScan(t, db, &models.PremiumScan{ID: janShop, UserID: janID, TargetURL: "https://Shop.example", Status: models.ScanStatusCompleted, CreatedAt: base.Add(4 * time.Minute)})
+	seedScan(t, db, &models.PremiumScan{ID: janBlog, UserID: janID, TargetURL: "https://blog.example", Status: models.ScanStatusFailed, CreatedAt: base.Add(3 * time.Minute)})
+	seedScan(t, db, &models.PremiumScan{ID: adminShop, UserID: adminID, TargetURL: "https://shop.example/admin", Status: models.ScanStatusCompleted, CreatedAt: base.Add(2 * time.Minute)})
+	seedScan(t, db, &models.Scan{ID: freeShop, TargetURL: "https://shop.example/100%", Status: models.ScanStatusCompleted, CreatedAt: base.Add(time.Minute)})
+
+	r := adminRouter(db, adminID)
+	list := func(query string) (ids []uuid.UUID, rows []adminScanRow) {
+		t.Helper()
+		w := get(t, r, "/admin/scans?"+query)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, body = %s", query, w.Code, w.Body)
+		}
+		var page struct {
+			Scans []adminScanRow `json:"scans"`
+			Total int64          `json:"total"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
+			t.Fatalf("JSON: %v", err)
+		}
+		if int(page.Total) != len(page.Scans) {
+			t.Fatalf("%s: total=%d, len=%d", query, page.Total, len(page.Scans))
+		}
+		for _, scan := range page.Scans {
+			ids = append(ids, scan.ID)
+		}
+		return ids, page.Scans
+	}
+
+	ids, rows := list("user_id=" + janID.String())
+	if len(ids) != 2 || ids[0] != janShop || ids[1] != janBlog {
+		t.Errorf("skany Jana = %v, want tylko jego dwa premium", ids)
+	}
+	if rows[0].UserEmail == nil || *rows[0].UserEmail != "jan@example.com" {
+		t.Errorf("user_email = %v, want jan@example.com", rows[0].UserEmail)
+	}
+
+	// Wielkość liter nie gra roli, a filtry się łączą.
+	if ids, _ := list("q=SHOP&user_id=" + janID.String()); len(ids) != 1 || ids[0] != janShop {
+		t.Errorf("q+user_id = %v, want tylko sklep Jana", ids)
+	}
+
+	ids, rows = list("q=shop")
+	if len(ids) != 3 {
+		t.Errorf("q=shop = %v, want trzy sklepy z obu tabel", ids)
+	}
+	if last := rows[len(rows)-1]; last.ID != freeShop || last.UserEmail != nil {
+		t.Errorf("skan darmowy = %+v, want bez user_email", last)
+	}
+
+	// % w zapytaniu to zwykły znak, nie wildcard.
+	if ids, _ := list("q=%25"); len(ids) != 1 || ids[0] != freeShop {
+		t.Errorf("q=%% = %v, want tylko adres z procentem", ids)
+	}
+
+	// Skan darmowy nie ma właściciela, więc nie pasuje do żadnego konta.
+	if ids, _ := list("type=free&user_id=" + janID.String()); len(ids) != 0 {
+		t.Errorf("type=free z user_id = %v, want pusto", ids)
+	}
+
+	if w := get(t, r, "/admin/scans?user_id=jan"); w.Code != http.StatusBadRequest {
+		t.Errorf("user_id bez UUID: %d, want 400", w.Code)
+	}
+}
+
+func TestAdminGetScanReturnsEitherKindWithResults(t *testing.T) {
+	db := testDB(t)
+	adminID := seedUser(t, db, "admin@example.com", "Admin", models.UserRoleAdmin, time.Now())
+	janID := seedUser(t, db, "jan@example.com", "Jan", models.UserRoleUser, time.Now())
+
+	freeID, premiumID := newID(t), newID(t)
+	started := time.Now().Add(-time.Minute)
+	seedScan(t, db, &models.Scan{ID: freeID, TargetURL: "https://free.example", Status: models.ScanStatusPending, CreatedAt: time.Now()})
+	seedScan(t, db, &models.PremiumScan{ID: premiumID, UserID: janID, TargetURL: "https://premium.example", Status: models.ScanStatusCompleted, CreatedAt: time.Now(), StartedAt: &started})
+	seedScan(t, db, &models.ScanResult{ScanID: premiumID, TestName: "hsts", Severity: "HIGH", Passed: false, Message: "brak nagłówka"})
+	seedScan(t, db, &models.ScanResult{ScanID: premiumID, TestName: "https", Severity: "INFO", Passed: true})
+
+	r := adminRouter(db, adminID)
+
+	w := get(t, r, "/admin/scans/"+premiumID.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body)
+	}
+	var scan adminScanDetails
+	if err := json.Unmarshal(w.Body.Bytes(), &scan); err != nil {
+		t.Fatalf("JSON: %v", err)
+	}
+	if scan.Type != "premium" || scan.UserID == nil || *scan.UserID != janID || scan.UserEmail == nil || *scan.UserEmail != "jan@example.com" {
+		t.Errorf("skan premium = %+v, want cudzy skan Jana z adresem", scan)
+	}
+	if scan.StartedAt == nil || len(scan.Results) != 2 || scan.Results[0].TestName != "hsts" || scan.Results[0].Passed {
+		t.Errorf("started_at=%v wyniki=%+v, want start i dwa wyniki w kolejności zapisu", scan.StartedAt, scan.Results)
+	}
+
+	w = get(t, r, "/admin/scans/"+freeID.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body)
+	}
+	// Pusta lista, nie null: panel nie musi rozróżniać tych dwóch przypadków.
+	if !strings.Contains(w.Body.String(), `"results":[]`) || strings.Contains(w.Body.String(), "user_id") {
+		t.Errorf("skan darmowy = %s, want results:[] i bez user_id", w.Body)
+	}
+
+	w = get(t, r, "/admin/scans/"+uuid.NewString())
+	if w.Code != http.StatusNotFound || errorCode(t, w.Body.Bytes()) != httpx.CodeScanNotFound {
+		t.Errorf("nieznany skan: got %d %s, want 404 SCAN_NOT_FOUND", w.Code, w.Body)
+	}
+	if w := get(t, r, "/admin/scans/nie-uuid"); w.Code != http.StatusBadRequest {
+		t.Errorf("zły identyfikator: %d, want 400", w.Code)
 	}
 }
 

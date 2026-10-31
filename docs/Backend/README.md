@@ -34,7 +34,7 @@ graph TD
 | `internal/handlers/scan_handler.go` | Scan submissions, polling, dashboards |
 | `internal/results/` | Results queue contract, batched consumers and storage |
 | `internal/handlers/auth*_handler.go` | Registration, sessions, MFA, OAuth, passkeys, account operations |
-| `internal/handlers/admin_handler.go` | Admin database and dashboard endpoints |
+| `internal/handlers/admin*_handler.go` | Admin dashboard widgets and operations on accounts and scans |
 | `internal/billing/`, `internal/handlers/billing_handler.go` | Pro plan: Stripe Checkout, customer portal, subscription sync and webhook |
 | `internal/models/` | Database models and JSON scan result types |
 | `internal/auth/`, `middleware/` | Tokens, sessions, password policies, bearer and origin checks |

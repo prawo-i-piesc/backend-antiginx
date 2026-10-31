@@ -185,11 +185,8 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		admin.DELETE("/users/:id", adminHandler.HandleDeleteUser)
 
 		admin.GET("/scans", adminHandler.HandleListScans)
+		admin.GET("/scans/:id", adminHandler.HandleGetScan)
 		admin.DELETE("/scans/:id", adminHandler.HandleDeleteScan)
-
-		// Deprecated: zrzut całej tabeli, do usunięcia po przejściu panelu
-		// admina na /users i /scans.
-		admin.GET("/database", adminHandler.HandleGetDatabaseInfo)
 	}
 
 	return r
