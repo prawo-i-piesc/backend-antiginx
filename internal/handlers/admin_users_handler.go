@@ -264,6 +264,12 @@ func (h *AdminHandler) HandleDeleteUser(c *gin.Context) {
 		return
 	}
 
+	if err := h.billing.CloseAccount(c.Request.Context(), user.ID); err != nil {
+		log.Printf("AdminDeleteUser: nie udało się zamknąć płatności konta %s: %v", user.ID, err)
+		httpx.Fail(c, httpx.CodeBillingUnavailable)
+		return
+	}
+
 	if err := deleteUserCascade(h.db, user.ID); err != nil {
 		log.Printf("AdminDeleteUser: nie udało się usunąć konta %s: %v", user.ID, err)
 		httpx.Fail(c, httpx.CodeInternal)

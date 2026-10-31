@@ -14,6 +14,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/auth/oauth"
 	"github.com/prawo-i-piesc/backend/internal/auth/passkey"
+	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/mail"
@@ -51,6 +52,8 @@ type AuthHandler struct {
 
 	mailer  mail.Mailer
 	limiter *auth.RateLimiter
+
+	billing *billing.Service
 }
 
 type RegisterRequest struct {
@@ -75,7 +78,7 @@ func newMailer(cfg *config.Config) mail.Mailer {
 	}
 }
 
-func NewAuthHandler(db *gorm.DB, cfg *config.Config) (*AuthHandler, error) {
+func NewAuthHandler(db *gorm.DB, cfg *config.Config, billingService *billing.Service) (*AuthHandler, error) {
 	var providers []oauth.Provider
 	if cfg.GoogleEnabled() {
 		providers = append(providers, oauth.NewGoogle(
@@ -109,6 +112,7 @@ func NewAuthHandler(db *gorm.DB, cfg *config.Config) (*AuthHandler, error) {
 		passkeyCeremonies: passkey.NewCeremonyStore(),
 		mailer:            newMailer(cfg),
 		limiter:           auth.NewRateLimiter(),
+		billing:           billingService,
 	}, nil
 }
 
@@ -307,11 +311,20 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
+	// Plan steruje tylko tym, co front pokazuje; uprawnienia sprawdza każdy
+	// endpoint u siebie. Dlatego błąd odczytu kończy się Free, a nie 500 na
+	// całym pulpicie.
+	plan, err := billing.UserPlan(h.db, user.ID)
+	if err != nil {
+		log.Printf("Me: nie udało się odczytać planu %s: %v", user.ID, err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"id":         user.ID,
 		"full_name":  user.FullName,
 		"email":      user.Email,
 		"role":       user.Role,
+		"plan":       plan,
 		"created_at": user.CreatedAt,
 		"auth": gin.H{
 			"password_set":   user.HasPassword(),

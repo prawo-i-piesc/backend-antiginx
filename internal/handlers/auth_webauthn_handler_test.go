@@ -12,6 +12,7 @@ import (
 	"github.com/descope/virtualwebauthn"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
@@ -36,7 +37,7 @@ func passkeyConfig() *config.Config {
 func passkeyHandler(t *testing.T, db *gorm.DB) *AuthHandler {
 	t.Helper()
 
-	h, err := NewAuthHandler(db, passkeyConfig())
+	h, err := NewAuthHandler(db, passkeyConfig(), billing.New(db, nil, "", ""))
 	if err != nil {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
