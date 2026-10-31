@@ -81,7 +81,7 @@ func main() {
 	}
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
-	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 
@@ -135,6 +135,7 @@ func main() {
 	}
 	adminHandler := handlers.NewAdminHandler(db, auth.NewSessionService(db, cfg.RefreshTokenTTL), billingService)
 	billingHandler := handlers.NewBillingHandler(db, billingService, cfg.StripeWebhookSecret)
+	dashboardHandler := handlers.NewDashboardHandler(db)
 
 	probes := []api.Probe{
 		{Name: "db", Check: sqlDB.PingContext},
@@ -148,7 +149,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":4000",
-		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, cfg, probes),
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, cfg, probes),
 		MaxHeaderBytes:    64 << 10,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
