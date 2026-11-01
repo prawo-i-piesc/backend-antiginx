@@ -14,6 +14,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
+	"github.com/prawo-i-piesc/backend/internal/monitoring"
 	"github.com/prawo-i-piesc/backend/middleware"
 )
 
@@ -21,7 +22,7 @@ var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
 const maxRequestBody = 1 << 20
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, cfg *config.Config, probes []Probe) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, systemHandler *handlers.SystemHandler, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
@@ -190,6 +191,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	{
 		admin.GET("/widgets", adminHandler.HandleGetDashboardWidgets)
 		admin.GET("/stats/tests", adminHandler.HandleTestStats)
+		admin.GET("/system", systemHandler.HandleSystem)
 
 		admin.GET("/users", adminHandler.HandleListUsers)
 		admin.GET("/users/:id", adminHandler.HandleGetUser)

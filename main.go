@@ -36,6 +36,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
+	"github.com/prawo-i-piesc/backend/internal/monitoring"
 	"github.com/prawo-i-piesc/backend/internal/results"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/driver/postgres"
@@ -137,9 +138,9 @@ func main() {
 	billingHandler := handlers.NewBillingHandler(db, billingService, cfg.StripeWebhookSecret)
 	dashboardHandler := handlers.NewDashboardHandler(db)
 
-	probes := []api.Probe{
+	probes := []monitoring.Probe{
 		{Name: "db", Check: sqlDB.PingContext},
-		{Name: "rabbitmq", Check: func(context.Context) error {
+		{Name: "rabbitmq", Local: true, Check: func(context.Context) error {
 			if ch.IsClosed() {
 				return errBrokerClosed
 			}
@@ -147,9 +148,16 @@ func main() {
 		}},
 	}
 
+	var prometheus *monitoring.Prometheus
+	if cfg.PrometheusURL != "" {
+		prometheus = monitoring.NewPrometheus(cfg.PrometheusURL)
+		log.Println("Widok systemu korzysta z Prometheusa")
+	}
+	systemHandler := handlers.NewSystemHandler(db, probes, prometheus, cfg.GrafanaURL)
+
 	srv := &http.Server{
 		Addr:              ":4000",
-		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, cfg, probes),
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, systemHandler, cfg, probes),
 		MaxHeaderBytes:    64 << 10,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,

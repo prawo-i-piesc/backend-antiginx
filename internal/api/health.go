@@ -7,16 +7,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prawo-i-piesc/backend/internal/monitoring"
 )
 
 const probeTimeout = 2 * time.Second
-
-// Probe sprawdza jedną zależność, od której zależy obsługa ruchu. Name trafia
-// do odpowiedzi /readyz, więc ma być krótkie i stałe: "db", "rabbitmq".
-type Probe struct {
-	Name  string
-	Check func(ctx context.Context) error
-}
 
 // healthz to sonda liveness: odpowiada, dopóki proces obsługuje HTTP. Celowo
 // nie dotyka bazy ani brokera — zerwane połączenie z Postgresem nie jest
@@ -27,7 +21,7 @@ func healthz(c *gin.Context) {
 
 // readyz to sonda readiness: 503, gdy którakolwiek zależność nie odpowiada,
 // żeby Service przestał kierować ruch do poda, który i tak by go nie obsłużył.
-func readyz(probes []Probe) gin.HandlerFunc {
+func readyz(probes []monitoring.Probe) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		status := http.StatusOK
 		report := make(gin.H, len(probes))

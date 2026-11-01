@@ -76,6 +76,11 @@ type Config struct {
 	StripeProPriceID    string
 	StripeWebhookSecret string
 	StripeSyncInterval  time.Duration
+
+	// Opcjonalne: bez PROMETHEUS_URL widok systemu w panelu admina pokazuje
+	// tylko sondy i kolejkę skanów; GRAFANA_URL dokłada link do dashboardów.
+	PrometheusURL string
+	GrafanaURL    string
 }
 
 // BillingEnabled mówi, czy można sprzedawać Pro. Bez kluczy Stripe wszyscy są
@@ -171,6 +176,24 @@ func Load() (*Config, error) {
 	cfg.StripeWebhookSecret = strings.TrimSpace(os.Getenv("STRIPE_WEBHOOK_SECRET"))
 	problems = append(problems, stripeProblems(cfg)...)
 
+	for _, setting := range []struct {
+		key    string
+		target *string
+	}{
+		{"PROMETHEUS_URL", &cfg.PrometheusURL},
+		{"GRAFANA_URL", &cfg.GrafanaURL},
+	} {
+		raw := strings.TrimSpace(os.Getenv(setting.key))
+		if raw == "" {
+			continue
+		}
+		if value, err := normalizeServiceURL(raw); err != nil {
+			problems = append(problems, fmt.Sprintf("%s is invalid: %v", setting.key, err))
+		} else {
+			*setting.target = value
+		}
+	}
+
 	secure, err := envBool("COOKIE_SECURE", true)
 	if err != nil {
 		problems = append(problems, err.Error())
@@ -230,6 +253,29 @@ func normalizeOrigin(raw string) (string, error) {
 		return "", fmt.Errorf("must be a bare origin, without path, query or fragment")
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host), nil
+}
+
+// normalizeServiceURL przyjmuje adres usługi z opcjonalną ścieżką (Grafana bywa
+// wystawiona pod /grafana), ale bez zapytania i fragmentu.
+func normalizeServiceURL(raw string) (string, error) {
+	u, err := url.Parse(strings.TrimRight(raw, "/"))
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("scheme must be http or https, got %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("missing host")
+	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("must not have a query or fragment")
+	}
+	// GRAFANA_URL trafia do przeglądarki admina, więc nie może nieść hasła.
+	if u.User != nil {
+		return "", fmt.Errorf("must not contain credentials")
+	}
+	return u.String(), nil
 }
 
 // stripeProblems sprawdza prefiksy, bo pomylenie klucza publicznego z

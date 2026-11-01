@@ -85,6 +85,7 @@ nav:
       - Authentication and Accounts: Backend/Auth.md
       - Billing: Backend/Billing.md
       - Dashboard Statistics: Backend/Dashboard.md
+      - System Status: Backend/System.md
 
 copyright: "Copyright &copy; 2025 Antiginx Team. All rights reserved."
 

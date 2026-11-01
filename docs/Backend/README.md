@@ -36,6 +36,7 @@ graph TD
 | `internal/handlers/auth*_handler.go` | Registration, sessions, MFA, OAuth, passkeys, account operations |
 | `internal/handlers/admin*_handler.go` | Admin dashboard widgets and operations on accounts and scans |
 | `internal/stats/`, `internal/handlers/dashboard_handler.go` | Dashboard statistics, the risk score and saved preferences |
+| `internal/monitoring/`, `internal/handlers/system_handler.go` | Admin System view: probes, scan queue, server load from Prometheus |
 | `internal/billing/`, `internal/handlers/billing_handler.go` | Pro plan: Stripe Checkout, customer portal, subscription sync and webhook |
 | `internal/models/` | Database models and JSON scan result types |
 | `internal/auth/`, `middleware/` | Tokens, sessions, password policies, bearer and origin checks |
@@ -47,6 +48,7 @@ graph TD
 - [Authentication and account API](./Auth.md) — JWT, refresh sessions, MFA, OAuth, WebAuthn and admin routes.
 - [Billing](./Billing.md) — the Pro plan, Stripe setup and how subscription state is kept current.
 - [Dashboard statistics](./Dashboard.md) — chart and widget data, the risk score and saved preferences.
+- [System status](./System.md) — probes, scan queue and server load from Prometheus for the admin panel.
 - [Quick Start](../QuickStart/QuickStart.md) — local, Docker and Compose instructions.
 
 !!! warning "Integration boundary"
