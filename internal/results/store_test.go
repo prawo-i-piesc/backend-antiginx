@@ -132,6 +132,30 @@ func TestSaveBatchRecordsEngineMessagesForPremiumScans(t *testing.T) {
 	if want := "blocked (Code: 403) - " + antiBotHint; scan.Results[0].Message != want {
 		t.Errorf("message = %q, want %q", scan.Results[0].Message, want)
 	}
+	if !scan.Results[0].Notice {
+		t.Error("komunikat silnika bez notice: statystyki policzyłyby go jako zdany test")
+	}
+}
+
+func TestMarkLegacyNoticesFindsOnlyEngineMessages(t *testing.T) {
+	db := testDB(t)
+	scanID := uuid.New()
+	legacy := models.ScanResult{ScanID: scanID, TestName: "HSTS", Severity: "Info", Passed: true, Message: "blocked (Code: 403) - " + antiBotHint}
+	outcome := models.ScanResult{ScanID: scanID, TestName: "CSP", Severity: "None", Passed: true, Message: "Header present"}
+	for _, row := range []*models.ScanResult{&legacy, &outcome} {
+		if err := db.Create(row).Error; err != nil {
+			t.Fatalf("zasianie: %v", err)
+		}
+	}
+
+	if err := MarkLegacyNotices(db); err != nil {
+		t.Fatalf("MarkLegacyNotices: %v", err)
+	}
+	var marked []string
+	db.Model(&models.ScanResult{}).Where("notice = ?", true).Pluck("test_name", &marked)
+	if len(marked) != 1 || marked[0] != "HSTS" {
+		t.Errorf("oznaczone = %v, want tylko stary komunikat silnika", marked)
+	}
 }
 
 func TestSaveBatchHandlesPendingScanFinishedInOneBatch(t *testing.T) {

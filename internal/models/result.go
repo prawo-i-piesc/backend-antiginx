@@ -12,6 +12,10 @@ type ScanResult struct {
 	Severity string    `json:"severity"`
 	Passed   bool      `json:"passed"`
 	Message  string    `gorm:"type:text" json:"message"`
+	// Notice: komunikat silnika (test przerwany, zablokowany przez anty-bota),
+	// a nie wynik testu. Statystyki go pomijają, żeby skan, który niczego nie
+	// sprawdził, nie liczył się jako bezpieczny.
+	Notice bool `gorm:"not null;default:false" json:"notice"`
 
 	Metadata datatypes.JSON `json:"metadata"`
 }

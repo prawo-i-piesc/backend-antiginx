@@ -117,6 +117,7 @@ func toRow(msg message) models.ScanResult {
 			TestName: name,
 			Severity: "Info",
 			Passed:   true,
+			Notice:   true,
 			Message:  fmt.Sprintf("%s (Code: %d) - %s", info.Message, info.Code, antiBotHint),
 			Metadata: datatypes.JSON(`{}`),
 		}
@@ -134,4 +135,14 @@ func toRow(msg message) models.ScanResult {
 		Message:  test.Description,
 		Metadata: metadata,
 	}
+}
+
+// MarkLegacyNotices oznacza komunikaty silnika zapisane, zanim wyniki miały
+// kolumnę notice. Rozpoznaje je po podpowiedzi, którą toRow dokleja do każdego
+// takiego komunikatu i do żadnego wyniku testu. Wywoływane raz, zaraz po
+// dodaniu kolumny.
+func MarkLegacyNotices(db *gorm.DB) error {
+	return db.Model(&models.ScanResult{}).
+		Where("notice = ? AND message LIKE ?", false, "% - "+antiBotHint).
+		Update("notice", true).Error
 }

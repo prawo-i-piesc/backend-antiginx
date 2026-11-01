@@ -82,8 +82,20 @@ func main() {
 	}
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
+	if err := models.DeleteOrphanPreferences(db); err != nil {
+		log.Fatalf("Nie udało się usunąć osieroconych preferencji: %v", err)
+	}
+	// Kolumna notice dochodzi w AutoMigrate; stare komunikaty silnika trzeba
+	// wtedy raz oznaczyć, żeby nie liczyły się w statystykach jako zdane testy.
+	noticesMarked := db.Migrator().HasColumn(&models.ScanResult{}, "notice")
+
 	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
+	}
+	if !noticesMarked {
+		if err := results.MarkLegacyNotices(db); err != nil {
+			log.Fatalf("Nie udało się oznaczyć komunikatów silnika: %v", err)
+		}
 	}
 
 	conn, err := amqp.Dial(cfg.RabbitMQURL)

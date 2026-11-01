@@ -33,9 +33,9 @@ type Scan struct {
 	// TargetURL is the URL that was scanned for security issues
 	TargetURL string `json:"target_url"`
 	// Status indicates the current state of the scan (PENDING, RUNNING, COMPLETED, FAILED)
-	Status string `json:"status"`
+	Status string `gorm:"index:idx_scans_status_created,priority:1" json:"status"`
 	// CreatedAt is the timestamp when the scan was submitted
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `gorm:"index:idx_scans_status_created,priority:2" json:"created_at"`
 	// StartedAt is the timestamp when a worker began processing the scan (nil if not started)
 	StartedAt *time.Time `json:"started_at"`
 	// CompletedAt is the timestamp when the scan finished (nil if not completed)
