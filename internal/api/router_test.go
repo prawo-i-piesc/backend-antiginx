@@ -195,14 +195,16 @@ func TestSessionRoutesRejectForeignOrigin(t *testing.T) {
 }
 
 func TestPreferenceWritesRejectForeignOrigin(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPut, "/api/users/preferences/dashboard.widgets", nil)
-	req.Header.Set("Origin", "https://attacker.invalid")
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		req := httptest.NewRequest(method, "/api/users/preferences/dashboard.widgets", nil)
+		req.Header.Set("Origin", "https://attacker.invalid")
 
-	w := httptest.NewRecorder()
-	testRouter(t).ServeHTTP(w, req)
+		w := httptest.NewRecorder()
+		testRouter(t).ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want 403", w.Code)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("%s: status = %d, want 403", method, w.Code)
+		}
 	}
 }
 

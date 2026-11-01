@@ -172,6 +172,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 	preferences.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
 	{
 		preferences.PUT("/:key", dashboardHandler.HandlePutPreference)
+		preferences.DELETE("/:key", dashboardHandler.HandleDeletePreference)
 	}
 
 	billing := r.Group("/api/billing")

@@ -12,19 +12,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/gorm"
 )
 
-// riskWeight to waga nieudanego testu według severity. Ten sam model liczył
-// do tej pory front (calculateThreatLevel w app/lib/api.ts); trzymamy go w
-// jednym miejscu, żeby #133 zmieniło go tylko tutaj.
-const riskWeight = `CASE upper(r.severity)
-	WHEN 'CRITICAL' THEN 100 WHEN 'HIGH' THEN 75 WHEN 'MEDIUM' THEN 50 WHEN 'LOW' THEN 25
-	ELSE 5 END`
-
-// failedResult jest prawdziwe tylko dla istniejącego, nieudanego wyniku: przy
-// LEFT JOIN skan bez wyników daje wiersz z r.* równym NULL.
-const failedResult = `r.id IS NOT NULL AND NOT r.passed`
+// outcomes dołącza wyniki testów skanu s, bez komunikatów silnika.
+const outcomes = `JOIN scan_results r ON r.scan_id = s.id AND NOT r.notice`
 
 // Filter wybiera skany, z których liczymy. Owner nil oznacza całą platformę:
 // skany darmowe i premium razem. Since zero oznacza bez ograniczenia czasu.
@@ -35,7 +28,10 @@ type Filter struct {
 }
 
 // completedScans to podzapytanie z zakończonymi skanami pasującymi do filtra,
-// z kolumnami id, target_url i created_at, pod aliasem s.
+// z kolumnami id, target_url i created_at, pod aliasem s. Bierze tylko skany
+// z co najmniej jednym wynikiem testu: skan, w którym silnik wszystko
+// przerwał (np. anty-bot zablokował każdy test), nie ma ryzyka, a nie ma
+// ryzyko zero.
 func completedScans(f Filter) (string, []any) {
 	where := []string{"status = 'COMPLETED'"}
 	var args []any
@@ -48,13 +44,16 @@ func completedScans(f Filter) (string, []any) {
 		args = append(args, f.Domain)
 	}
 	cond := strings.Join(where, " AND ")
+	tested := func(table string) string {
+		return " AND EXISTS (SELECT 1 FROM scan_results o WHERE o.scan_id = " + table + ".id AND NOT o.notice)"
+	}
 
 	if f.Owner != nil {
-		return "(SELECT id, target_url, created_at FROM premium_scans WHERE user_id = ? AND " + cond + ") AS s",
+		return "(SELECT id, target_url, created_at FROM premium_scans WHERE user_id = ? AND " + cond + tested("premium_scans") + ") AS s",
 			append([]any{*f.Owner}, args...)
 	}
-	return "(SELECT id, target_url, created_at FROM scans WHERE " + cond +
-			" UNION ALL SELECT id, target_url, created_at FROM premium_scans WHERE " + cond + ") AS s",
+	return "(SELECT id, target_url, created_at FROM scans WHERE " + cond + tested("scans") +
+			" UNION ALL SELECT id, target_url, created_at FROM premium_scans WHERE " + cond + tested("premium_scans") + ") AS s",
 		append(append([]any{}, args...), args...)
 }
 
@@ -65,11 +64,15 @@ type TrendPoint struct {
 	CreatedAt time.Time `json:"created_at"`
 	Tests     int       `json:"tests"`
 	Failed    int       `json:"failed"`
-	// Risk to średnia waga nieudanych testów, 0–100; 0, gdy wszystkie przeszły.
+	// Risk to ryzyko skanu według modelu z risk.go, 0–100; 0, gdy wszystkie
+	// testy przeszły.
 	Risk int `json:"risk"`
+	// Przed zaokrągleniem, żeby średnia z wielu skanów nie zbierała błędów.
+	ExactRisk float64 `json:"-"`
 }
 
-// RiskTrend zwraca zakończone skany od najstarszego, każdy z ryzykiem.
+// RiskTrend zwraca zakończone skany od najstarszego, każdy z ryzykiem. Baza
+// liczy testy na skan i oddaje nieudane wyniki; ryzyko z nich liczy Risk.
 func RiskTrend(db *gorm.DB, f Filter) ([]TrendPoint, error) {
 	source, args := completedScans(f)
 	var rows []struct {
@@ -78,29 +81,46 @@ func RiskTrend(db *gorm.DB, f Filter) ([]TrendPoint, error) {
 		CreatedAt time.Time
 		Tests     int
 		Failed    int
-		Risk      float64
 	}
 	err := db.Raw(`SELECT s.id AS scan_id, s.target_url, s.created_at,
 			COUNT(r.id) AS tests,
-			COALESCE(SUM(CASE WHEN `+failedResult+` THEN 1 ELSE 0 END), 0) AS failed,
-			COALESCE(AVG(CASE WHEN `+failedResult+` THEN `+riskWeight+` END), 0) AS risk
+			SUM(CASE WHEN r.passed THEN 0 ELSE 1 END) AS failed
 		FROM `+source+`
-		LEFT JOIN scan_results r ON r.scan_id = s.id
+		`+outcomes+`
 		GROUP BY s.id, s.target_url, s.created_at
 		ORDER BY s.created_at, s.id`, args...).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 
+	var failures []struct {
+		ScanID   uuid.UUID
+		TestName string
+		Severity string
+	}
+	err = db.Raw(`SELECT s.id AS scan_id, r.test_name, r.severity
+		FROM `+source+`
+		`+outcomes+`
+		WHERE NOT r.passed`, args...).Scan(&failures).Error
+	if err != nil {
+		return nil, err
+	}
+	findings := make(map[uuid.UUID][]Finding, len(rows))
+	for _, failure := range failures {
+		findings[failure.ScanID] = append(findings[failure.ScanID], Finding{Test: failure.TestName, Severity: failure.Severity})
+	}
+
 	points := make([]TrendPoint, 0, len(rows))
 	for _, row := range rows {
+		risk := Risk(findings[row.ScanID])
 		points = append(points, TrendPoint{
 			ScanID:    row.ScanID,
 			TargetURL: row.TargetURL,
 			CreatedAt: row.CreatedAt,
 			Tests:     row.Tests,
 			Failed:    row.Failed,
-			Risk:      int(math.Min(math.Round(row.Risk), 100)),
+			Risk:      int(math.Round(risk)),
+			ExactRisk: risk,
 		})
 	}
 	return points, nil
@@ -125,7 +145,7 @@ func Severity(db *gorm.DB, f Filter) (SeverityBreakdown, error) {
 	}
 	err := db.Raw(`SELECT upper(r.severity) AS severity, r.passed AS passed, COUNT(*) AS count
 		FROM `+source+`
-		JOIN scan_results r ON r.scan_id = s.id
+		`+outcomes+`
 		GROUP BY upper(r.severity), r.passed`, args...).Scan(&rows).Error
 	if err != nil {
 		return SeverityBreakdown{}, err
@@ -164,7 +184,7 @@ func TopFailedTests(db *gorm.DB, f Filter, limit int) ([]TestFailures, error) {
 	err := db.Raw(`SELECT r.test_name, COUNT(*) AS runs,
 			SUM(CASE WHEN r.passed THEN 0 ELSE 1 END) AS failures
 		FROM `+source+`
-		JOIN scan_results r ON r.scan_id = s.id
+		`+outcomes+`
 		GROUP BY r.test_name
 		HAVING SUM(CASE WHEN r.passed THEN 0 ELSE 1 END) > 0
 		ORDER BY failures DESC, runs DESC, r.test_name
@@ -189,7 +209,8 @@ func Domains(db *gorm.DB, f Filter) ([]Domain, error) {
 	return domains, err
 }
 
-// StatusCounts to liczba skanów konta w każdym statusie, bez okna czasu.
+// StatusCounts to liczba skanów konta w każdym statusie, bez okna czasu;
+// z domeną tylko skany tego adresu.
 type StatusCounts struct {
 	Total     int `json:"total"`
 	Pending   int `json:"pending"`
@@ -198,13 +219,16 @@ type StatusCounts struct {
 	Failed    int `json:"failed"`
 }
 
-func ScanStatuses(db *gorm.DB, owner uuid.UUID) (StatusCounts, error) {
+func ScanStatuses(db *gorm.DB, owner uuid.UUID, domain string) (StatusCounts, error) {
 	var rows []struct {
 		Status string
 		Count  int
 	}
-	if err := db.Raw(`SELECT status, COUNT(*) AS count FROM premium_scans WHERE user_id = ? GROUP BY status`, owner).
-		Scan(&rows).Error; err != nil {
+	query := db.Model(&models.PremiumScan{}).Select("status, COUNT(*) AS count").Where("user_id = ?", owner)
+	if domain != "" {
+		query = query.Where("target_url = ?", domain)
+	}
+	if err := query.Group("status").Scan(&rows).Error; err != nil {
 		return StatusCounts{}, err
 	}
 
