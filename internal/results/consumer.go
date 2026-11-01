@@ -72,7 +72,9 @@ func (c *Consumer) consume(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	defer ch.Close()
+	defer func() {
+		_ = ch.Close()
+	}()
 
 	// Prefetch większy od paczki, żeby kolejna zbierała się, zanim poprzednia
 	// zostanie potwierdzona.

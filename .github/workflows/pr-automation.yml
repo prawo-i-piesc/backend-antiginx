@@ -2,7 +2,7 @@ name: PR Automation
 run-name: >-
   ${{
       github.event_name == 'pull_request'
-      && format('Pull Request Automation #{0} -> {1}', github.event.number, github.event.pull_request.title)
+      && format('Configure PR Metadata: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
   }}
 
 on:
@@ -10,7 +10,6 @@ on:
     types: [opened, reopened]
 
 permissions:
-  statuses: read
   contents: read
   issues: write
   pull-requests: write
@@ -18,6 +17,7 @@ permissions:
 jobs:
   pr-automation:
     name: Configure Metadata
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -43,6 +43,12 @@ jobs:
         run: |
           # 1. Get Issue ID from branch name (e.g. feat/123-my-feature)
           ISSUE_ID=$(echo "$BRANCH" | grep -oE '(/|^)[0-9]+' | head -n 1 | tr -d '/')
+
+          if [ -z "$ISSUE_ID" ]; then
+              echo ""
+              echo "❌ No issue number found in branch '$BRANCH'. Skipping milestone assignment."
+              exit 0
+          fi
 
           # 2. Get Milestone name from Issue
           MILESTONE=$(gh issue view "$ISSUE_ID" --json milestone --jq '.milestone.title // empty' 2>/dev/null || true)

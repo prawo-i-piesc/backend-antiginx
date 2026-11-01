@@ -73,7 +73,9 @@ func (p *Prometheus) Ready(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: /-/ready answered %d", ErrPrometheus, resp.StatusCode)
 	}
@@ -141,7 +143,9 @@ func (p *Prometheus) get(ctx context.Context, path string, query url.Values) (*a
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrPrometheus, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	var body apiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {

@@ -1,0 +1,55 @@
+name: Unit Test Verification
+run-name: >-
+  ${{
+      github.event_name == 'pull_request'
+      && format('Unit Test Verification for CI: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+      ||
+      github.event_name == 'push'
+      && format('Unit Test Verification for CI: Merge -> {0}', github.event.head_commit.message)
+  }}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit-ci-test:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Git -- Checkout repository
+        uses: actions/checkout@v7
+
+      - name: 📘 Go -- Set up
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: 🧪 Go -- Unit Tests
+        run: |
+          echo "⚙️ Running unit tests..."
+          if go test -race -coverprofile=coverage.out ./...; then
+              echo ""
+              echo "✅ Unit tests passed successfully."
+          else
+              echo ""
+              echo "❌ Unit tests failed. Please fix the errors above."
+              exit 1
+          fi
+
+      - name: 📋 Go -- Report Coverage
+        run: |
+          echo "⚙️ Coverage summary:"
+          go tool cover -func=coverage.out | tail -n 1
