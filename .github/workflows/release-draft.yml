@@ -1,9 +1,6 @@
-name: Release Drafter
+name: Release Draft
 run-name: >-
   ${{
-    github.event_name == 'pull_request'
-    && format('Set up Release Draft: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
-    ||
     github.event_name == 'push'
     && format('Update Release Draft: Merge -> {0}', github.event.head_commit.message)
   }}
@@ -11,11 +8,13 @@ run-name: >-
 on:
   push:
     branches: ["main"]
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release-draft:
@@ -25,7 +24,7 @@ jobs:
 
     permissions:
       contents: write
-      pull-requests: write
+      pull-requests: read
 
     steps:
       - name: 📝 Release -- Update Draft Notes
@@ -34,4 +33,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           config-name: config.release-draft.yml
-          disable-autolabeler: true

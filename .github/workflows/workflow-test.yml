@@ -1,0 +1,53 @@
+name: Workflow Verification
+run-name: >-
+  ${{
+      github.event_name == 'pull_request'
+      && format('Workflow Verification for CI: PR #{0} -> {1}', github.event.number, github.event.pull_request.title)
+      ||
+      github.event_name == 'push'
+      && format('Workflow Verification for CI: Merge -> {0}', github.event.head_commit.message)
+  }}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  ACTIONLINT_VERSION: v1.7.12
+
+jobs:
+  workflow-ci-test:
+    name: Actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Git -- Checkout repository
+        uses: actions/checkout@v7
+
+      - name: 📦 Actionlint -- Install
+        run: |
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz" \
+            | sudo tar xz -C /usr/local/bin actionlint
+          actionlint -version
+
+      - name: 🧪 Actionlint -- Test Workflows
+        run: |
+          echo "⚙️ Running actionlint on GitHub Actions workflows:"
+          if actionlint -color; then
+              echo ""
+              echo "✅ No workflow errors found."
+          else
+              echo ""
+              echo "❌ Workflow errors found. Please fix the errors above."
+              exit 1
+          fi

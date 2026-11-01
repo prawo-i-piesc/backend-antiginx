@@ -18,12 +18,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-ref-{1}', github.workflow, github.ref) }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOVULNCHECK_VERSION: v1.9.0
 
 jobs:
   security-ci-test:
-    name: Testing
+    name: govulncheck & Trivy
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -39,7 +42,7 @@ jobs:
 
       - name: 📦 Go -- Install dependencies
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
 
       - name: 🧪 Go -- Test Vulnerability -> Modules
         run: |

@@ -1,4 +1,5 @@
 bug: ["fix/*", "bug/*", "bugfix/*"]
 enhancement: ["feature/*", "feat/*"]
 documentation: ["docs/*", "doc/*"]
+chore: ["chore/*"]
 dependencies: ["deps/*", "dependency/*"]
