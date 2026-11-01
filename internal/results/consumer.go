@@ -22,7 +22,12 @@ var minRetryDelay = time.Second
 
 var errDeliveriesClosed = errors.New("RabbitMQ zamknął strumień wyników")
 
-type saveFunc func(context.Context, []message) error
+// decodeFunc czyta jedną wiadomość; błąd oznacza wiadomość, której ponowne
+// dostarczenie nic nie zmieni, więc zostaje odrzucona bez requeue.
+type decodeFunc[T any] func([]byte) (T, error)
+
+// saveFunc zapisuje paczkę; błąd oddaje całą paczkę do kolejki po odczekaniu.
+type saveFunc[T any] func(context.Context, []T) error
 
 // Consumer uruchamia kilka niezależnych odbiorców kolejki wynikowej, każdego
 // na własnym kanale, żeby potwierdzenia jednej paczki nie mieszały się z
@@ -85,15 +90,18 @@ func (c *Consumer) consume(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	return collect(ctx, deliveries, c.batchSize, c.store.SaveBatch)
+	return collect(ctx, deliveries, c.batchSize, decode, c.store.SaveBatch)
 }
 
 // collect zbiera wiadomości w paczki i potwierdza każdą jednym Ack z
 // multiple=true na ostatniej dostawie. Nieudany zapis wraca do kolejki w
 // całości, ale dopiero po odczekaniu, żeby leżąca baza nie kręciła wiadomości
 // w kółko.
-func collect(ctx context.Context, deliveries <-chan amqp.Delivery, size int, save saveFunc) error {
-	batch := make([]message, 0, size)
+//
+// Wspólne dla wyników i nieudanych zadań: różnią się tylko tym, jak czytają i
+// zapisują wiadomość.
+func collect[T any](ctx context.Context, deliveries <-chan amqp.Delivery, size int, decode decodeFunc[T], save saveFunc[T]) error {
+	batch := make([]T, 0, size)
 	var last amqp.Delivery
 	retryDelay := minRetryDelay
 

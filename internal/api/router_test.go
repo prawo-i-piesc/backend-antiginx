@@ -60,7 +60,7 @@ func routerWithProbes(t *testing.T, cfg *config.Config, probes []monitoring.Prob
 	}
 
 	return NewRouter(
-		handlers.NewScanHandler(nil, nil),
+		handlers.NewScanHandler(nil, nil, false),
 		authHandler,
 		handlers.NewAdminHandler(nil, nil, billingService),
 		handlers.NewBillingHandler(nil, billingService, ""),
@@ -760,7 +760,7 @@ func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
-	r := NewRouter(handlers.NewScanHandler(nil, db), authHandler, handlers.NewAdminHandler(db, nil, billingService),
+	r := NewRouter(handlers.NewScanHandler(nil, db, false), authHandler, handlers.NewAdminHandler(db, nil, billingService),
 		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), cfg, nil)
 
 	// Rola w tokenie kłamie: RequireAdmin ma patrzeć do bazy, nie w claim.

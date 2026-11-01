@@ -106,17 +106,19 @@ A rule's `defaultConfiguration.level` and `security-severity` come from its most
 
 ## 🐰 Worker task
 
-The backend publishes persistent JSON through `main_exchange` with routing key `scan_key`, which delivers it to `scan_queue`, and waits for the broker's publisher confirm. `scan_queue` is a quorum queue: after three deliveries the daemon could not finish, the task is dead-lettered through `scan_dlx` into `scan_dlq`. When the broker nacks the task (for example a quorum without majority, or a length limit hit under `x-overflow: reject-publish`), is unreachable or the confirm does not arrive within 5 seconds, the scan is marked `FAILED` and the API returns `503 QUEUE_UNAVAILABLE`. Example task, in the shape of the daemon's `ScanTask`:
+The backend publishes persistent JSON through `main_exchange` with routing key `scan_key`, which delivers it to `scan_queue`, and waits for the broker's publisher confirm. `scan_queue` is a quorum queue: after three deliveries the daemon could not finish, the task is dead-lettered through the `scan_dlx` fanout into `scan_dlq` (kept for inspection) and `scan_failed`, which the backend consumes to mark the scan `FAILED` if it is still `PENDING` or `RUNNING`; a scan that already completed is left alone. When the broker nacks the task (for example a quorum without majority, or a length limit hit under `x-overflow: reject-publish`), is unreachable or the confirm does not arrive within 5 seconds, the scan is marked `FAILED` and the API returns `503 QUEUE_UNAVAILABLE`. Example task, in the shape of the daemon's `ScanTask`:
 
 ```json
 {
-  "Target": "https://example.com",
+  "Target": "example.com",
   "Parameters": [
     {"Name": "--tests", "Arguments": ["https", "hsts"]}
   ],
   "TaskId": "<scanId>"
 }
 ```
+
+`Target` is the validated `target_url` **without its scheme**: `host[:port][/path][?query]`, with the host lowercased and the fragment dropped (`https://Example.com:8443/app?x=1#top` → `example.com:8443/app?x=1`). The engine refuses a target that starts with `http` and adds the scheme itself: `http://` when the `https` or `hsts` test is selected (to check the redirect to HTTPS), `https://` otherwise. The scan record keeps the full `target_url`, which is what the API and reports show.
 
 Premium tasks can additionally contain `{"Name":"--antiBotDetection","Arguments":[]}`. No engine is started by this repository. Deploy [daemon-antiginx](https://github.com/prawo-i-piesc/daemon-antiginx) separately with access to RabbitMQ.
 
@@ -157,7 +159,7 @@ Delivery is at-least-once: a result saved right before the connection dropped ca
 ## ⚠️ Errors and limitations
 
 - Every error uses the shared `{"error","code","fields"}` shape. Malformed scan UUIDs produce `400 VALIDATION_FAILED` with `fields.id = "invalid"`; missing scans produce `404 SCAN_NOT_FOUND`; malformed JSON or absent required fields produce `400 VALIDATION_FAILED`.
-- `target_url` must use `http` or `https`, carry no credentials and name a public host. Rejected values return `400 VALIDATION_FAILED` with `fields.target_url` set to `invalid` (not a usable URL) or `not_public` (loopback, private, CGNAT, link-local or multicast address, single-label name, or an internal suffix such as `.local`, `.internal`, `.svc`). The check does not resolve DNS, so it cannot stop a public name pointing at a private address; that belongs in the engine's egress policy. Target ownership is not verified: restrict submissions to authorized testing.
+- `target_url` must use `http` or `https`, carry no credentials and name a public host. Rejected values return `400 VALIDATION_FAILED` with `fields.target_url` set to `invalid` (not a usable URL) or `not_public` (loopback, private, CGNAT, link-local or multicast address, single-label name, or an internal suffix such as `.local`, `.internal`, `.svc`). In development, `ANTIGINX_ALLOW_PRIVATE_TARGETS=true` lifts the `not_public` check (see [Configuration](./Configuration.md)); `invalid` still applies. The check does not resolve DNS, so it cannot stop a public name pointing at a private address; that belongs in the engine's egress policy. Target ownership is not verified: restrict submissions to authorized testing.
 - Queue publishing failures return `503 QUEUE_UNAVAILABLE` and mark the scan `FAILED`. `202` means accepted/queued, **not** completed.
 - Reports are only generated for finished scans: a `PENDING` or `RUNNING` scan returns `409 SCAN_NOT_FINISHED`, while a `FAILED` scan gets a report with whatever results arrived. An unknown `format` or `lang` returns `400 VALIDATION_FAILED` with `fields.format = "oneof:pdf html md sarif"` and/or `fields.lang = "oneof:en pl"`, both in one response.
 - Free scan data is publicly retrievable by its UUID. Keep sensitive targets out of public scans.

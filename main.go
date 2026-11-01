@@ -51,7 +51,7 @@ var errBrokerClosed = errors.New("kanał RabbitMQ jest zamknięty")
 //  1. Loads environment variables from .env file (optional)
 //  2. Establishes connection to PostgreSQL database
 //  3. Runs database migrations for Scan and ScanResult models
-//  4. Connects to RabbitMQ and declares scan_queue, scan_dlq and the results queue
+//  4. Connects to RabbitMQ and declares scan_queue, scan_dlq, scan_failed and the results queue
 //  5. Starts the results queue consumers
 //  6. Initializes HTTP handlers and starts the server on port 4000
 //
@@ -141,7 +141,10 @@ func main() {
 	}
 	billingService := billing.New(db, stripeGateway, cfg.StripeProPriceID, cfg.PublicBaseURL)
 
-	scanHandler := handlers.NewScanHandler(ch, db)
+	if cfg.AllowPrivateTargets {
+		log.Printf("UWAGA: %s=true, skany mogą celować w sieć prywatną i usługi w klastrze. Tylko na dev, nigdy na produkcji.", config.AllowPrivateTargetsEnv)
+	}
+	scanHandler := handlers.NewScanHandler(ch, db, cfg.AllowPrivateTargets)
 	authHandler, err := handlers.NewAuthHandler(db, cfg, billingService)
 	if err != nil {
 		log.Fatalf("Nie udało się zainicjalizować obsługi uwierzytelniania: %v", err)
@@ -193,6 +196,18 @@ func main() {
 	}()
 	log.Printf("Odbieram wyniki z %s (%d odbiorców, paczki po %d)", cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
 
+	failedTasks := results.NewFailedTasks(conn, results.NewStore(db), results.FailedQueue)
+	failedDone := make(chan struct{})
+	go func() {
+		defer close(failedDone)
+		if err := failedTasks.Run(ctx); err != nil {
+			// Bez tego odbiorcy skany, których daemon nie wykona, wiszą w
+			// PENDING; restart jak przy odbiorze wyników.
+			log.Printf("Odbiór nieudanych zadań zatrzymany: %v", err)
+			stop()
+		}
+	}()
+
 	billingDone := make(chan struct{})
 	go func() {
 		defer close(billingDone)
@@ -216,6 +231,7 @@ func main() {
 		log.Printf("Serwer nie zamknął się w wyznaczonym czasie: %v", err)
 	}
 	<-consumerDone
+	<-failedDone
 	<-billingDone
 }
 
@@ -223,8 +239,10 @@ func main() {
 // niczego nie deklaruje, więc ich kształt jest ustalany tylko tutaj.
 //
 // scan_queue jest kolejką quorum: po x-delivery-limit nieudanych podejściach
-// daemona zadanie trafia przez scan_dlx do scan_dlq. Wyniki daemon publikuje
-// przez domyślny exchange z routing key równym nazwie kolejki wynikowej.
+// daemona zadanie trafia przez fanout scan_dlx do scan_dlq i do scan_failed.
+// scan_dlq zostaje do podglądu, a scan_failed czyta backend, żeby oznaczyć
+// skan jako FAILED. Wyniki daemon publikuje przez domyślny exchange z routing
+// key równym nazwie kolejki wynikowej.
 func declareTopology(ch *amqp.Channel, resultsQueue string) error {
 	if err := ch.ExchangeDeclare("main_exchange", "direct", true, false, false, false, nil); err != nil {
 		return fmt.Errorf("main_exchange: %w", err)
@@ -252,6 +270,13 @@ func declareTopology(ch *amqp.Channel, resultsQueue string) error {
 	}
 	if err := ch.QueueBind("scan_dlq", "", "scan_dlx", false, nil); err != nil {
 		return fmt.Errorf("bind scan_dlq: %w", err)
+	}
+
+	if _, err := ch.QueueDeclare(results.FailedQueue, true, false, false, false, amqp.Table{"x-queue-type": "quorum"}); err != nil {
+		return fmt.Errorf("%s: %w", results.FailedQueue, err)
+	}
+	if err := ch.QueueBind(results.FailedQueue, "", "scan_dlx", false, nil); err != nil {
+		return fmt.Errorf("bind %s: %w", results.FailedQueue, err)
 	}
 
 	if _, err := ch.QueueDeclare(resultsQueue, true, false, false, false, nil); err != nil {

@@ -22,7 +22,7 @@ graph TD
 3. The **daemon** consumes `scan_queue`, runs the engine and publishes every result to the results queue. The backend's result consumers save them in batches: the first result moves the scan `PENDING` → `RUNNING`, the end message (`endFlag`) marks it `COMPLETED`.
 4. Clients poll `GET /api/freescans/:id` (public) or `GET /api/scans/:id` (owner only) for status and results.
 
-`main.go` declares a quorum `scan_queue` that dead-letters through `scan_dlx` into `scan_dlq` after three deliveries, and the results queue. The backend does not execute security tests.
+`main.go` declares a quorum `scan_queue` that dead-letters through `scan_dlx` into `scan_dlq` and `scan_failed` after three deliveries, and the results queue. The backend reads `scan_failed` to mark scans the daemon could not run as `FAILED`. The backend does not execute security tests.
 
 ## 📁 Source map
 

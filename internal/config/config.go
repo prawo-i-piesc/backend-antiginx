@@ -31,6 +31,10 @@ const (
 
 const DefaultStripeSyncInterval = time.Hour
 
+// AllowPrivateTargetsEnv ma tę samą nazwę co przełącznik w silniku
+// (App/SSRF), żeby jedna zmienna w ConfigMapie włączała oba naraz.
+const AllowPrivateTargetsEnv = "ANTIGINX_ALLOW_PRIVATE_TARGETS"
+
 const (
 	MailTransportResend = "resend"
 	MailTransportLog    = "log"
@@ -40,6 +44,11 @@ const (
 type Config struct {
 	DatabaseURL string
 	RabbitMQURL string
+
+	// AllowPrivateTargets wyłącza odrzucanie adresów prywatnych i wewnętrznych
+	// w target_url, żeby na dev dało się skanować strony testowe w klastrze.
+	// Nigdy na produkcji: zamienia skaner w proxy do sieci wewnętrznej.
+	AllowPrivateTargets bool
 
 	// ResultsQueue musi być tą samą nazwą, co RABBITMQ_RESULTS_QUEUE daemona.
 	ResultsQueue    string
@@ -199,6 +208,10 @@ func Load() (*Config, error) {
 		problems = append(problems, err.Error())
 	}
 	cfg.CookieSecure = secure
+
+	if cfg.AllowPrivateTargets, err = envStrictBool(AllowPrivateTargetsEnv); err != nil {
+		problems = append(problems, err.Error())
+	}
 
 	if cfg.AccessTokenTTL, err = envDuration("ACCESS_TOKEN_TTL", DefaultAccessTokenTTL); err != nil {
 		problems = append(problems, err.Error())
@@ -386,6 +399,20 @@ func envBool(key string, fallback bool) (bool, error) {
 		return fallback, fmt.Errorf("%s must be a boolean, got %q", key, raw)
 	}
 	return v, nil
+}
+
+// envStrictBool przyjmuje tylko "true" i "false" (domyślnie false). Silnik
+// włącza swój przełącznik wyłącznie przy dokładnym "true", więc "1" albo
+// "TRUE" włączyłyby ochronę w jednym miejscu, a w drugim nie.
+func envStrictBool(key string) (bool, error) {
+	switch raw := strings.TrimSpace(os.Getenv(key)); raw {
+	case "", "false":
+		return false, nil
+	case "true":
+		return true, nil
+	default:
+		return false, fmt.Errorf("%s must be true or false, got %q", key, raw)
+	}
 }
 
 func envDuration(key string, fallback time.Duration) (time.Duration, error) {
