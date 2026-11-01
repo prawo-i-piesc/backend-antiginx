@@ -1,6 +1,6 @@
 module github.com/prawo-i-piesc/backend
 
-go 1.26.9
+go 1.26.10
 
 require (
 	codeberg.org/go-pdf/fpdf v0.12.0
@@ -15,7 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pquerna/otp v1.5.0
-	github.com/rabbitmq/amqp091-go v1.13.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/stripe/stripe-go/v87 v87.0.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/image v0.47.0
