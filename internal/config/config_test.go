@@ -13,6 +13,7 @@ var allKeys = []string{
 	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
 	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
 	"WEBAUTHN_RPID", "WEBAUTHN_RP_NAME",
+	"PROMETHEUS_URL", "GRAFANA_URL",
 	"MAIL_TRANSPORT", "MAIL_FROM", "RESEND_API_KEY",
 	"STRIPE_SECRET_KEY", "STRIPE_PRO_PRICE_ID", "STRIPE_WEBHOOK_SECRET", "STRIPE_SYNC_INTERVAL",
 }
@@ -560,5 +561,40 @@ func TestStripeRejectsMixedUpValues(t *testing.T) {
 				t.Error("Load przyjął błędną konfigurację Stripe")
 			}
 		})
+	}
+}
+
+func TestMonitoringURLs(t *testing.T) {
+	setEnv(t, validEnv())
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PrometheusURL != "" || cfg.GrafanaURL != "" {
+		t.Errorf("bez zmiennych monitoring ma być wyłączony, mamy %q i %q", cfg.PrometheusURL, cfg.GrafanaURL)
+	}
+
+	env := validEnv()
+	env["PROMETHEUS_URL"] = "http://prometheus-operated.monitoring:9090/"
+	env["GRAFANA_URL"] = "https://grafana.antiginx.pl/grafana"
+	setEnv(t, env)
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PrometheusURL != "http://prometheus-operated.monitoring:9090" {
+		t.Errorf("PrometheusURL = %q, want bez końcowego ukośnika", cfg.PrometheusURL)
+	}
+	if cfg.GrafanaURL != "https://grafana.antiginx.pl/grafana" {
+		t.Errorf("GrafanaURL = %q, ścieżka ma zostać", cfg.GrafanaURL)
+	}
+
+	for _, bad := range []string{"prometheus:9090", "ftp://prometheus", "http://prometheus?x=1", "http://admin:secret@prometheus:9090"} {
+		env := validEnv()
+		env["PROMETHEUS_URL"] = bad
+		setEnv(t, env)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "PROMETHEUS_URL") {
+			t.Errorf("PROMETHEUS_URL=%q: err = %v, want błąd konfiguracji", bad, err)
+		}
 	}
 }

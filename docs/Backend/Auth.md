@@ -132,6 +132,7 @@ Email verification links target the frontend `/verify-email?token=...` and expir
 | `GET` | `/api/admin/scans/:id` | Any scan, free or premium and whoever owns it: the row fields plus `started_at`, `completed_at` and `results` (an empty list until the engine reports). |
 | `DELETE` | `/api/admin/scans/:id` | Deletes a free or premium scan with its results (`204`). |
 | `GET` | `/api/admin/widgets` | Admin dashboard widgets. |
+| `GET` | `/api/admin/system` | Probes, scan queue and server load; see [System status](./System.md). |
 
 These routes require an access JWT **and** `RequireAdmin`, which reads the role from the database on every request rather than trusting the role claim, so a demotion takes effect immediately. Registration assigns the ordinary `user` role.
 

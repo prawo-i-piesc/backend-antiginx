@@ -53,6 +53,15 @@ Billing is off unless both `STRIPE_SECRET_KEY` and `STRIPE_PRO_PRICE_ID` are set
 | `STRIPE_WEBHOOK_SECRET` | unset | Signing secret (`whsec_...`) of the webhook endpoint. Without it `/api/billing/webhook` answers `404` and the state is kept current by reconciliation alone. |
 | `STRIPE_SYNC_INTERVAL` | `1h` | How often each instance re-reads live subscriptions from Stripe. This is how renewals, cancellations and failed payments reach the database when webhooks cannot. |
 
+## 🖥️ System status
+
+Both are optional. See [System status](./System.md).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PROMETHEUS_URL` | unset | Prometheus the admin System view reads server load from, e.g. `http://prometheus-operated.monitoring:9090`. Unset, the view shows only the probes and the scan queue. |
+| `GRAFANA_URL` | unset | Grafana link shown in the System view. |
+
 ## 🐰 Broker and database
 
 At startup `main.go` migrates users, free and premium scans, scan results, sessions, recovery codes, OAuth credentials, WebAuthn credentials, email/password-reset tokens and subscriptions. It declares `main_exchange`, a quorum `scan_queue` (`x-delivery-limit` 3, dead-lettered at-least-once through the `scan_dlx` fanout exchange into the quorum `scan_dlq`, `x-overflow: reject-publish`) and the durable results queue, then starts the result consumers. The daemon declares nothing, so these arguments are defined only here. Workers must be deployed independently; the backend does not launch a worker or PostgreSQL/RabbitMQ.

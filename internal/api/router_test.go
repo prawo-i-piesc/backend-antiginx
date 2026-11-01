@@ -19,6 +19,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/models"
+	"github.com/prawo-i-piesc/backend/internal/monitoring"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -49,7 +50,7 @@ func routerWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 	return routerWithProbes(t, cfg, nil)
 }
 
-func routerWithProbes(t *testing.T, cfg *config.Config, probes []Probe) *gin.Engine {
+func routerWithProbes(t *testing.T, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
 	t.Helper()
 
 	billingService := billing.New(nil, nil, "", "")
@@ -64,6 +65,7 @@ func routerWithProbes(t *testing.T, cfg *config.Config, probes []Probe) *gin.Eng
 		handlers.NewAdminHandler(nil, nil, billingService),
 		handlers.NewBillingHandler(nil, billingService, ""),
 		handlers.NewDashboardHandler(nil),
+		handlers.NewSystemHandler(nil, probes, nil, ""),
 		cfg,
 		probes,
 	)
@@ -607,7 +609,7 @@ func TestClientIPIgnoresForwardedHeaders(t *testing.T) {
 }
 
 func TestHealthzHasNoDependencies(t *testing.T) {
-	failing := []Probe{{Name: "db", Check: func(context.Context) error { return errors.New("down") }}}
+	failing := []monitoring.Probe{{Name: "db", Check: func(context.Context) error { return errors.New("down") }}}
 
 	w := httptest.NewRecorder()
 	routerWithProbes(t, testConfig(), failing).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -618,7 +620,7 @@ func TestHealthzHasNoDependencies(t *testing.T) {
 }
 
 func TestReadyzReportsEachDependency(t *testing.T) {
-	probes := []Probe{
+	probes := []monitoring.Probe{
 		{Name: "db", Check: func(context.Context) error { return errors.New("connection refused") }},
 		{Name: "rabbitmq", Check: func(context.Context) error { return nil }},
 	}
@@ -643,7 +645,7 @@ func TestReadyzReportsEachDependency(t *testing.T) {
 }
 
 func TestReadyzTimesOutAHangingProbe(t *testing.T) {
-	probes := []Probe{{Name: "db", Check: func(ctx context.Context) error {
+	probes := []monitoring.Probe{{Name: "db", Check: func(ctx context.Context) error {
 		<-ctx.Done()
 		return ctx.Err()
 	}}}
@@ -661,7 +663,7 @@ func TestReadyzTimesOutAHangingProbe(t *testing.T) {
 }
 
 func TestReadyzIsReadyWhenAllProbesPass(t *testing.T) {
-	probes := []Probe{{Name: "db", Check: func(context.Context) error { return nil }}}
+	probes := []monitoring.Probe{{Name: "db", Check: func(context.Context) error { return nil }}}
 
 	w := httptest.NewRecorder()
 	routerWithProbes(t, testConfig(), probes).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
@@ -718,6 +720,7 @@ var adminRoutes = []struct {
 	{http.MethodDelete, "/api/admin/scans/" + uuid.NewString()},
 	{http.MethodGet, "/api/admin/widgets"},
 	{http.MethodGet, "/api/admin/stats/tests"},
+	{http.MethodGet, "/api/admin/system"},
 }
 
 func TestAdminRoutesRequireAToken(t *testing.T) {
@@ -756,7 +759,7 @@ func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
 	r := NewRouter(handlers.NewScanHandler(nil, db), authHandler, handlers.NewAdminHandler(db, nil, billingService),
-		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), cfg, nil)
+		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), cfg, nil)
 
 	// Rola w tokenie kłamie: RequireAdmin ma patrzeć do bazy, nie w claim.
 	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleAdmin, time.Minute)
