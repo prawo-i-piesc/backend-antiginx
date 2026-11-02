@@ -39,13 +39,17 @@ type ScanHandler struct {
 	amqpChannel *amqp.Channel
 	db          *gorm.DB
 	limiter     *auth.RateLimiter
+	// allowPrivateTargets to ANTIGINX_ALLOW_PRIVATE_TARGETS: przepuszcza cele
+	// w sieci prywatnej i w klastrze, tylko na dev.
+	allowPrivateTargets bool
 }
 
-func NewScanHandler(ch *amqp.Channel, db *gorm.DB) *ScanHandler {
+func NewScanHandler(ch *amqp.Channel, db *gorm.DB, allowPrivateTargets bool) *ScanHandler {
 	return &ScanHandler{
-		amqpChannel: ch,
-		db:          db,
-		limiter:     auth.NewRateLimiter(),
+		amqpChannel:         ch,
+		db:                  db,
+		limiter:             auth.NewRateLimiter(),
+		allowPrivateTargets: allowPrivateTargets,
 	}
 }
 
@@ -136,7 +140,7 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 		return
 	}
 
-	target, ok := validTarget(c, req.TargetURL)
+	target, ok := h.validTarget(c, req.TargetURL)
 	if !ok {
 		return
 	}
@@ -155,7 +159,7 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 
 	newScan := models.Scan{
 		ID:        newScanID,
-		TargetURL: target,
+		TargetURL: target.URL,
 		Status:    models.ScanStatusPending,
 		CreatedAt: time.Now(),
 	}
@@ -166,7 +170,7 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 		return
 	}
 
-	if !h.queueScan(c, &models.Scan{}, newScan.ID, newScan.TargetURL, AvailableTestsList, false) {
+	if !h.queueScan(c, &models.Scan{}, newScan.ID, target, AvailableTestsList, false) {
 		return
 	}
 
@@ -183,7 +187,7 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 		return
 	}
 
-	target, ok := validTarget(c, req.TargetURL)
+	target, ok := h.validTarget(c, req.TargetURL)
 	if !ok {
 		return
 	}
@@ -214,7 +218,7 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 	newScan := models.PremiumScan{
 		ID:        newScanID,
 		UserID:    userID,
-		TargetURL: target,
+		TargetURL: target.URL,
 		Status:    models.ScanStatusPending,
 		CreatedAt: time.Now(),
 	}
@@ -225,7 +229,7 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 		return
 	}
 
-	if !h.queueScan(c, &models.PremiumScan{}, newScan.ID, newScan.TargetURL, validTests, req.AntiBotDetection) {
+	if !h.queueScan(c, &models.PremiumScan{}, newScan.ID, target, validTests, req.AntiBotDetection) {
 		return
 	}
 
@@ -236,25 +240,25 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 }
 
 // validTarget odrzuca target_url, którego nie wolno skanować, i zwraca adres
-// w postaci przekazywanej silnikowi.
-func validTarget(c *gin.Context, raw string) (string, bool) {
-	target, reason := normalizeTarget(raw)
+// w postaci dla bazy i dla silnika.
+func (h *ScanHandler) validTarget(c *gin.Context, raw string) (scanTarget, bool) {
+	target, reason := normalizeTarget(raw, h.allowPrivateTargets)
 	if reason != "" {
 		httpx.FailWithFields(c, httpx.CodeValidationFailed, map[string]string{"target_url": reason})
-		return "", false
+		return scanTarget{}, false
 	}
-	if len(target) > maxTargetURLLength {
+	if len(target.URL) > maxTargetURLLength {
 		httpx.FailWithFields(c, httpx.CodeValidationFailed, map[string]string{"target_url": "max:2048"})
-		return "", false
+		return scanTarget{}, false
 	}
 	return target, true
 }
 
-// queueScan publikuje zadanie dla silnika. Gdy kolejka nie przyjmie
-// wiadomości, skan dostaje FAILED, żeby nie wisiał wiecznie jako PENDING.
-func (h *ScanHandler) queueScan(c *gin.Context, model any, scanID uuid.UUID, target string, tests []string, antiBot bool) bool {
+// newScanTask składa zadanie dla daemona. Target to cel bez schematu, bo
+// tylko taki przyjmuje silnik.
+func newScanTask(scanID uuid.UUID, target scanTarget, tests []string, antiBot bool) ScanTaskPayload {
 	task := ScanTaskPayload{
-		Target: target,
+		Target: target.Engine,
 		Parameters: []*CommandParameter{
 			{Name: "--tests", Arguments: tests},
 		},
@@ -266,6 +270,13 @@ func (h *ScanHandler) queueScan(c *gin.Context, model any, scanID uuid.UUID, tar
 			Arguments: []string{},
 		})
 	}
+	return task
+}
+
+// queueScan publikuje zadanie dla silnika. Gdy kolejka nie przyjmie
+// wiadomości, skan dostaje FAILED, żeby nie wisiał wiecznie jako PENDING.
+func (h *ScanHandler) queueScan(c *gin.Context, model any, scanID uuid.UUID, target scanTarget, tests []string, antiBot bool) bool {
+	task := newScanTask(scanID, target, tests, antiBot)
 
 	if err := h.publishTask(c.Request.Context(), task); err != nil {
 		log.Printf("Scan %s: nie udało się opublikować zadania: %v", scanID, err)

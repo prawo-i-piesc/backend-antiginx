@@ -89,11 +89,11 @@ func (s *recordingSaver) sizes() []int {
 	return sizes
 }
 
-func runCollect(t *testing.T, deliveries chan amqp.Delivery, size int, save saveFunc) (context.CancelFunc, chan error) {
+func runCollect(t *testing.T, deliveries chan amqp.Delivery, size int, save saveFunc[message]) (context.CancelFunc, chan error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	errs := make(chan error, 1)
-	go func() { errs <- collect(ctx, deliveries, size, save) }()
+	go func() { errs <- collect(ctx, deliveries, size, decode, save) }()
 	t.Cleanup(cancel)
 	return cancel, errs
 }

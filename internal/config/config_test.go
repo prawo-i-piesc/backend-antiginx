@@ -16,6 +16,7 @@ var allKeys = []string{
 	"PROMETHEUS_URL", "GRAFANA_URL",
 	"MAIL_TRANSPORT", "MAIL_FROM", "RESEND_API_KEY",
 	"STRIPE_SECRET_KEY", "STRIPE_PRO_PRICE_ID", "STRIPE_WEBHOOK_SECRET", "STRIPE_SYNC_INTERVAL",
+	AllowPrivateTargetsEnv,
 }
 
 const testTOTPKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -596,5 +597,39 @@ func TestMonitoringURLs(t *testing.T) {
 		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "PROMETHEUS_URL") {
 			t.Errorf("PROMETHEUS_URL=%q: err = %v, want błąd konfiguracji", bad, err)
 		}
+	}
+}
+
+func TestLoadAllowPrivateTargets(t *testing.T) {
+	for value, want := range map[string]bool{"": false, "false": false, "true": true, " true ": true} {
+		t.Run(value, func(t *testing.T) {
+			env := validEnv()
+			env[AllowPrivateTargetsEnv] = value
+			setEnv(t, env)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.AllowPrivateTargets != want {
+				t.Errorf("AllowPrivateTargets = %v, want %v", cfg.AllowPrivateTargets, want)
+			}
+		})
+	}
+}
+
+// Silnik włącza swój przełącznik tylko przy dokładnym "true"; inna wartość
+// włączyłaby ochronę w jednym miejscu, a w drugim nie.
+func TestLoadRejectsAllowPrivateTargetsOtherThanTrueOrFalse(t *testing.T) {
+	for _, value := range []string{"1", "TRUE", "yes", "on"} {
+		t.Run(value, func(t *testing.T) {
+			env := validEnv()
+			env[AllowPrivateTargetsEnv] = value
+			setEnv(t, env)
+
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), AllowPrivateTargetsEnv) {
+				t.Errorf("err = %v, want error naming %s", err, AllowPrivateTargetsEnv)
+			}
+		})
 	}
 }

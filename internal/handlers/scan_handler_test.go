@@ -41,7 +41,7 @@ func errorCode(t *testing.T, body []byte) httpx.Code {
 
 func TestFreeScanRejectsInternalTargetsBeforeTouchingTheDatabase(t *testing.T) {
 	db := testDB(t)
-	r := scanRouter(NewScanHandler(nil, db))
+	r := scanRouter(NewScanHandler(nil, db, false))
 
 	for _, target := range []string{"http://127.0.0.1", "http://10.0.0.1", "not a url", "http://rabbitmq"} {
 		t.Run(target, func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestFreeScanRejectsInternalTargetsBeforeTouchingTheDatabase(t *testing.T) {
 }
 
 func TestGetScanErrorsFollowTheContract(t *testing.T) {
-	r := scanRouter(NewScanHandler(nil, testDB(t)))
+	r := scanRouter(NewScanHandler(nil, testDB(t), false))
 
 	for _, tc := range []struct {
 		path   string

@@ -41,7 +41,7 @@ func TestPremiumReportIsServedToTheOwnerInEveryFormat(t *testing.T) {
 	db := testDB(t)
 	owner := newID(t)
 	scanID := seedPremiumScanWithResults(t, db, owner, models.ScanStatusCompleted)
-	r := reportRouter(NewScanHandler(nil, db), owner)
+	r := reportRouter(NewScanHandler(nil, db, false), owner)
 
 	for _, tc := range []struct {
 		query, contentType, ext string
@@ -80,7 +80,7 @@ func TestPremiumReportSARIFContainsTheScanResults(t *testing.T) {
 	owner := newID(t)
 	scanID := seedPremiumScanWithResults(t, db, owner, models.ScanStatusCompleted)
 
-	w := get(t, reportRouter(NewScanHandler(nil, db), owner), "/scans/"+scanID.String()+"/report?format=sarif")
+	w := get(t, reportRouter(NewScanHandler(nil, db, false), owner), "/scans/"+scanID.String()+"/report?format=sarif")
 
 	var log struct {
 		Runs []struct {
@@ -103,7 +103,7 @@ func TestPremiumReportHidesOtherUsersScans(t *testing.T) {
 	db := testDB(t)
 	scanID := seedPremiumScanWithResults(t, db, newID(t), models.ScanStatusCompleted)
 
-	w := get(t, reportRouter(NewScanHandler(nil, db), newID(t)), "/scans/"+scanID.String()+"/report")
+	w := get(t, reportRouter(NewScanHandler(nil, db, false), newID(t)), "/scans/"+scanID.String()+"/report")
 	if w.Code != http.StatusNotFound || errorCode(t, w.Body.Bytes()) != httpx.CodeScanNotFound {
 		t.Errorf("cudzy skan: got %d %s, want 404 SCAN_NOT_FOUND", w.Code, w.Body)
 	}
@@ -114,7 +114,7 @@ func TestPremiumReportDoesNotServeAFreeScanByID(t *testing.T) {
 	freeID := newID(t)
 	seedScan(t, db, &models.Scan{ID: freeID, TargetURL: "https://example.com", Status: models.ScanStatusCompleted})
 
-	w := get(t, reportRouter(NewScanHandler(nil, db), newID(t)), "/scans/"+freeID.String()+"/report")
+	w := get(t, reportRouter(NewScanHandler(nil, db, false), newID(t)), "/scans/"+freeID.String()+"/report")
 	if w.Code != http.StatusNotFound {
 		t.Errorf("got %d, want 404", w.Code)
 	}
@@ -123,7 +123,7 @@ func TestPremiumReportDoesNotServeAFreeScanByID(t *testing.T) {
 func TestReportWaitsForTheScanToFinish(t *testing.T) {
 	db := testDB(t)
 	owner := newID(t)
-	r := reportRouter(NewScanHandler(nil, db), owner)
+	r := reportRouter(NewScanHandler(nil, db, false), owner)
 
 	for _, status := range []string{models.ScanStatusPending, models.ScanStatusRunning} {
 		t.Run(status, func(t *testing.T) {
@@ -146,7 +146,7 @@ func TestReportRejectsBadInput(t *testing.T) {
 	db := testDB(t)
 	owner := newID(t)
 	scanID := seedPremiumScanWithResults(t, db, owner, models.ScanStatusCompleted)
-	r := reportRouter(NewScanHandler(nil, db), owner)
+	r := reportRouter(NewScanHandler(nil, db, false), owner)
 
 	w := get(t, r, "/scans/"+scanID.String()+"/report?format=docx")
 	var resp httpx.ErrorResponse
@@ -176,7 +176,7 @@ func TestReportFollowsTheRequestedLanguage(t *testing.T) {
 	db := testDB(t)
 	owner := newID(t)
 	scanID := seedPremiumScanWithResults(t, db, owner, models.ScanStatusCompleted)
-	r := reportRouter(NewScanHandler(nil, db), owner)
+	r := reportRouter(NewScanHandler(nil, db, false), owner)
 
 	for lang, want := range map[string]string{
 		"":      "# AntiGinx security report",
@@ -196,7 +196,7 @@ func TestHTMLReportGetsItsOwnCSP(t *testing.T) {
 	owner := newID(t)
 	scanID := seedPremiumScanWithResults(t, db, owner, models.ScanStatusCompleted)
 
-	w := get(t, reportRouter(NewScanHandler(nil, db), owner), "/scans/"+scanID.String()+"/report?format=html")
+	w := get(t, reportRouter(NewScanHandler(nil, db, false), owner), "/scans/"+scanID.String()+"/report?format=html")
 	csp := w.Header().Get("Content-Security-Policy")
 	if !strings.Contains(csp, "default-src 'none'") || !strings.Contains(csp, "style-src 'unsafe-inline'") || strings.Contains(csp, "script-src") {
 		t.Errorf("CSP = %q", csp)
@@ -208,7 +208,7 @@ func TestFreeScanReportIsPublic(t *testing.T) {
 	freeID := newID(t)
 	seedScan(t, db, &models.Scan{ID: freeID, TargetURL: "https://example.com", Status: models.ScanStatusCompleted})
 	seedScan(t, db, &models.ScanResult{ScanID: freeID, TestName: "HSTS Header Analysis", Severity: "Medium", Message: "HSTS missing", Metadata: datatypes.JSON(`{}`)})
-	r := reportRouter(NewScanHandler(nil, db), uuid.Nil)
+	r := reportRouter(NewScanHandler(nil, db, false), uuid.Nil)
 
 	w := get(t, r, "/freescans/"+freeID.String()+"/report?format=md")
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Free scan") || !strings.Contains(w.Body.String(), "HSTS missing") {

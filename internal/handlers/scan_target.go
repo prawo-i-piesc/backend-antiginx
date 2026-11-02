@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net"
 	"net/netip"
 	"net/url"
 	"strings"
@@ -24,42 +25,85 @@ var sharedAddressSpace = netip.MustParsePrefix("100.64.0.0/10")
 // mieszka, a IsGlobalUnicast odrzuca z tego zakresu tylko samo 0.0.0.0.
 var thisNetwork = netip.MustParsePrefix("0.0.0.0/8")
 
-// normalizeTarget sprawdza, czy adres nadaje się do skanowania z zewnątrz, i
-// zwraca go w postaci, w jakiej trafi do silnika. Drugi wynik to powód
-// odrzucenia albo pusty napis.
+// scanTarget to zweryfikowany adres celu w dwóch postaciach.
+type scanTarget struct {
+	// URL to pełny adres ze schematem, zapisywany w bazie i pokazywany w
+	// widokach oraz raportach.
+	URL string
+	// Engine to host[:port][/ścieżka][?zapytanie] bez schematu, w postaci, w
+	// jakiej oczekuje go silnik: TargetFormatter przerywa skan, gdy cel
+	// zaczyna się od "http", i sam dopisuje http:// albo https:// zależnie od
+	// wybranych testów.
+	Engine string
+}
+
+// normalizeTarget sprawdza, czy adres nadaje się do skanowania, i zwraca go
+// w postaci dla bazy i dla silnika. Drugi wynik to powód odrzucenia albo
+// pusty napis.
 //
-// To bramka na oczywiste nadużycia, nie pełna ochrona przed SSRF: domena
-// publiczna może się rozwiązywać na adres prywatny, a sprawdzenie DNS tutaj
-// i tak by nic nie dało, bo silnik rozwiązuje nazwę ponownie. Właściwą
-// granicą jest egress NetworkPolicy na podach silnika.
-func normalizeTarget(raw string) (string, string) {
+// Bez allowPrivate to bramka na oczywiste nadużycia, nie pełna ochrona przed
+// SSRF: domena publiczna może się rozwiązywać na adres prywatny, a sprawdzenie
+// DNS tutaj i tak by nic nie dało, bo silnik rozwiązuje nazwę ponownie i sam
+// pilnuje adresu przy połączeniu. Właściwą granicą jest egress NetworkPolicy
+// na podach silnika.
+//
+// allowPrivate (ANTIGINX_ALLOW_PRIVATE_TARGETS) przepuszcza adresy prywatne i
+// nazwy wewnętrzne, ale składnię sprawdza tak samo.
+func normalizeTarget(raw string, allowPrivate bool) (scanTarget, string) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
-		return "", targetInvalid
+		return scanTarget{}, targetInvalid
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", targetInvalid
+		return scanTarget{}, targetInvalid
 	}
 	if u.User != nil || u.Opaque != "" {
-		return "", targetInvalid
+		return scanTarget{}, targetInvalid
 	}
 
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	if host == "" {
-		return "", targetInvalid
+		return scanTarget{}, targetInvalid
 	}
 
-	if addr, err := netip.ParseAddr(host); err == nil {
-		if !publicAddr(addr) {
-			return "", targetNotPublic
+	addr, err := netip.ParseAddr(host)
+	isAddr := err == nil
+	// Strefa IPv6 (fe80::1%eth0) ma sens tylko na maszynie, która ją nadała, a
+	// silnik nie sparsuje jej po zdjęciu schematu.
+	if isAddr && addr.Zone() != "" {
+		return scanTarget{}, targetInvalid
+	}
+	if !allowPrivate {
+		if isAddr && !publicAddr(addr) {
+			return scanTarget{}, targetNotPublic
 		}
-		return u.String(), ""
+		if !isAddr && !publicHostname(host) {
+			return scanTarget{}, targetNotPublic
+		}
 	}
 
-	if !publicHostname(host) {
-		return "", targetNotPublic
+	return scanTarget{URL: u.String(), Engine: engineTarget(u, host, isAddr && addr.Is6())}, ""
+}
+
+// engineTarget składa cel dla silnika z już sprawdzonego adresu. Host jest w
+// postaci kanonicznej (małe litery, bez kropki na końcu), żeby silnik i jego
+// ochrona SSRF widziały tę samą nazwę co walidacja tutaj. Fragment znika, bo
+// i tak nigdy nie trafia do serwera.
+func engineTarget(u *url.URL, host string, ipv6 bool) string {
+	if port := u.Port(); port != "" {
+		host = net.JoinHostPort(host, port)
+	} else if ipv6 {
+		host = "[" + host + "]"
 	}
-	return u.String(), ""
+
+	var b strings.Builder
+	b.WriteString(host)
+	b.WriteString(u.EscapedPath())
+	if u.RawQuery != "" {
+		b.WriteByte('?')
+		b.WriteString(u.RawQuery)
+	}
+	return b.String()
 }
 
 func publicAddr(addr netip.Addr) bool {
