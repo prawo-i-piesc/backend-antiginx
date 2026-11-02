@@ -182,6 +182,82 @@ func TestSaveBatchHandlesPendingScanFinishedInOneBatch(t *testing.T) {
 	}
 }
 
+func TestSaveBatchSkipsResultsAlreadyStored(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+	scanID := newID(t)
+	if err := db.Create(&models.Scan{ID: scanID, TargetURL: "https://example.com", Status: models.ScanStatusPending, CreatedAt: time.Now()}).Error; err != nil {
+		t.Fatalf("zasianie skanu: %v", err)
+	}
+
+	// Ponowione zadanie: ten sam komplet w kolejnej paczce i dubel w tej samej.
+	first := []message{
+		decoded(t, body(scanID, "https", "High", false, Success)),
+		decoded(t, body(scanID, "hsts", "None", false, Success)),
+	}
+	retry := []message{
+		decoded(t, body(scanID, "https", "High", false, Success)),
+		decoded(t, body(scanID, "hsts", "None", false, Success)),
+		decoded(t, body(scanID, "hsts", "None", false, Success)),
+	}
+	for _, batch := range [][]message{first, retry} {
+		if err := store.SaveBatch(context.Background(), batch); err != nil {
+			t.Fatalf("SaveBatch: %v", err)
+		}
+	}
+
+	var names []string
+	if err := db.Model(&models.ScanResult{}).Where("scan_id = ?", scanID).Order("test_name").Pluck("test_name", &names).Error; err != nil {
+		t.Fatalf("odczyt wyników: %v", err)
+	}
+	if len(names) != 2 || names[0] != "hsts" || names[1] != "https" {
+		t.Errorf("wyniki = %v, want po jednym hsts i https", names)
+	}
+}
+
+func TestDeleteDuplicateResultsPreparesUniqueIndex(t *testing.T) {
+	db := testDB(t)
+	// Tabela w stanie sprzed migracji: stary nieunikalny indeks i duble.
+	if err := db.Migrator().DropIndex(&models.ScanResult{}, models.ScanResultsUniqueIndex); err != nil {
+		t.Fatalf("zdjęcie indeksu: %v", err)
+	}
+	if err := db.Exec("CREATE INDEX " + legacyResultsIndex + " ON scan_results (scan_id, test_name)").Error; err != nil {
+		t.Fatalf("stary indeks: %v", err)
+	}
+	scanID := newID(t)
+	rows := []models.ScanResult{
+		{ScanID: scanID, TestName: "https", Message: "pierwszy"},
+		{ScanID: scanID, TestName: "https", Message: "dubel"},
+		{ScanID: scanID, TestName: "hsts", Message: "jedyny"},
+	}
+	for i := range rows {
+		if err := db.Create(&rows[i]).Error; err != nil {
+			t.Fatalf("zasianie: %v", err)
+		}
+	}
+
+	if err := DeleteDuplicateResults(db); err != nil {
+		t.Fatalf("DeleteDuplicateResults: %v", err)
+	}
+	if err := db.AutoMigrate(&models.ScanResult{}); err != nil {
+		t.Fatalf("AutoMigrate po sprzątaniu: %v", err)
+	}
+
+	var kept []string
+	db.Model(&models.ScanResult{}).Order("id").Pluck("message", &kept)
+	if len(kept) != 2 || kept[0] != "pierwszy" || kept[1] != "jedyny" {
+		t.Errorf("zostały = %v, want najstarszy https i hsts", kept)
+	}
+	m := db.Migrator()
+	if !m.HasIndex(&models.ScanResult{}, models.ScanResultsUniqueIndex) || m.HasIndex(&models.ScanResult{}, legacyResultsIndex) {
+		t.Error("po migracji powinien zostać tylko unikalny indeks")
+	}
+	// Drugie uruchomienie przy gotowym indeksie niczego nie rusza.
+	if err := DeleteDuplicateResults(db); err != nil {
+		t.Fatalf("DeleteDuplicateResults drugi raz: %v", err)
+	}
+}
+
 func TestSaveBatchSkipsUnknownScans(t *testing.T) {
 	db := testDB(t)
 	known := newID(t)

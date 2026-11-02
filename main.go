@@ -85,6 +85,9 @@ func main() {
 	if err := models.DeleteOrphanPreferences(db); err != nil {
 		log.Fatalf("Nie udało się usunąć osieroconych preferencji: %v", err)
 	}
+	if err := results.DeleteDuplicateResults(db); err != nil {
+		log.Fatalf("Nie udało się usunąć zdublowanych wyników: %v", err)
+	}
 	// Kolumna notice dochodzi w AutoMigrate; stare komunikaty silnika trzeba
 	// wtedy raz oznaczyć, żeby nie liczyły się w statystykach jako zdane testy.
 	noticesMarked := db.Migrator().HasColumn(&models.ScanResult{}, "notice")

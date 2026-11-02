@@ -154,7 +154,7 @@ Within a batch:
 - `resultType` `0` (`Message`) records the engine's execution message (a test interrupted or blocked) as an `Info` row named after the test, or `Engine/Execution Error` when the name is empty.
 - The first saved message moves the scan `PENDING` → `RUNNING`. A `FAILED` scan is never completed. Messages for a scan that no longer exists are logged and dropped.
 
-Delivery is at-least-once: a result saved right before the connection dropped can arrive again and be stored twice. Messages are spread over several consumers, so the end message can be committed a few milliseconds before the last results of the same scan.
+Delivery is at-least-once: a result saved right before the connection dropped can arrive again, and a task the daemon retries sends all its results again. A unique index on (`scan_id`, `test_name`) keeps one row per test, and a result that is already stored is skipped. Messages are spread over several consumers, so the end message can be committed a few milliseconds before the last results of the same scan.
 
 ## ⚠️ Errors and limitations
 

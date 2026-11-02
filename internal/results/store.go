@@ -10,6 +10,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -54,7 +55,13 @@ func (s *Store) SaveBatch(ctx context.Context, batch []message) error {
 		}
 
 		if len(rows) > 0 {
-			if err := tx.CreateInBatches(rows, insertBatchSize).Error; err != nil {
+			// Wynik już zapisany (ponowione zadanie, ponowiona paczka) jest
+			// pomijany, a nie dopisywany drugi raz.
+			onConflict := clause.OnConflict{
+				Columns:   []clause.Column{{Name: "scan_id"}, {Name: "test_name"}},
+				DoNothing: true,
+			}
+			if err := tx.Clauses(onConflict).CreateInBatches(rows, insertBatchSize).Error; err != nil {
 				return err
 			}
 		}
@@ -145,4 +152,28 @@ func MarkLegacyNotices(db *gorm.DB) error {
 	return db.Model(&models.ScanResult{}).
 		Where("notice = ? AND message LIKE ?", false, "% - "+antiBotHint).
 		Update("notice", true).Error
+}
+
+// legacyResultsIndex to nieunikalny indeks sprzed ScanResultsUniqueIndex.
+const legacyResultsIndex = "idx_scan_results_scan_test"
+
+// DeleteDuplicateResults usuwa wyniki zapisane drugi raz przy ponownym
+// dostarczeniu, zostawiając najstarszy wiersz, i zdejmuje stary nieunikalny
+// indeks. Musi pójść przed AutoMigrate: unikalny indeks nie powstanie na
+// tabeli z duplikatami. Gdy unikalny indeks już jest, nie robi nic.
+func DeleteDuplicateResults(db *gorm.DB) error {
+	m := db.Migrator()
+	if !m.HasTable(&models.ScanResult{}) || m.HasIndex(&models.ScanResult{}, models.ScanResultsUniqueIndex) {
+		return nil
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		err := tx.Exec(`DELETE FROM scan_results WHERE id NOT IN (SELECT MIN(id) FROM scan_results GROUP BY scan_id, test_name)`).Error
+		if err != nil {
+			return err
+		}
+		if tx.Migrator().HasIndex(&models.ScanResult{}, legacyResultsIndex) {
+			return tx.Migrator().DropIndex(&models.ScanResult{}, legacyResultsIndex)
+		}
+		return nil
+	})
 }
