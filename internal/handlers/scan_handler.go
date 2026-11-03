@@ -193,6 +193,7 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 		TargetURL: target.URL,
 		Status:    models.ScanStatusPending,
 		CreatedAt: time.Now(),
+		Tests:     models.PlannedTests(FreeScanTests),
 	}
 
 	if err := h.db.Create(&newScan).Error; err != nil {
@@ -263,6 +264,7 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 		TargetURL: target.URL,
 		Status:    models.ScanStatusPending,
 		CreatedAt: time.Now(),
+		Tests:     models.PlannedTests(validTests),
 	}
 
 	if err := h.db.Create(&newScan).Error; err != nil {

@@ -153,3 +153,73 @@ func TestRequireAuthDefaultsMissingRole(t *testing.T) {
 		t.Errorf("userRole = %q, want %q", role, models.UserRoleUser)
 	}
 }
+
+func guardedByCookie(t *testing.T, name, value, authHeader string) (status int, userID string, expires time.Time) {
+	t.Helper()
+
+	r := gin.New()
+	r.GET("/", RequireAccessCookie(testSecret), func(c *gin.Context) {
+		userID = c.GetString("userID")
+		expires = c.GetTime("tokenExpiresAt")
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	if name != "" {
+		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	}
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w.Code, userID, expires
+}
+
+func TestRequireAccessCookieAcceptsValidTokenAndKeepsItsExpiry(t *testing.T) {
+	token, err := auth.GenerateToken(testSecret, auth.TokenTypeAccess, "user-1", models.UserRoleUser, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, userID, expires := guardedByCookie(t, auth.AccessCookieName, token, "")
+	if status != http.StatusOK || userID != "user-1" {
+		t.Fatalf("got %d, userID %q", status, userID)
+	}
+	if until := time.Until(expires); until < 59*time.Minute || until > time.Hour {
+		t.Errorf("koniec ważności za %s, want około godziny", until)
+	}
+}
+
+func TestRequireAccessCookieRejects(t *testing.T) {
+	mfa, err := auth.GenerateToken(testSecret, auth.TokenTypeMFA, "user-1", models.UserRoleUser, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := auth.GenerateToken([]byte("inny-sekret-inny-sekret-inny-sekret-1"), auth.TokenTypeAccess, "user-1", models.UserRoleUser, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid, err := auth.GenerateToken(testSecret, auth.TokenTypeAccess, "user-1", models.UserRoleUser, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name, cookie, value, header string
+	}{
+		{name: "bez ciasteczka"},
+		{name: "śmieć w ciasteczku", cookie: auth.AccessCookieName, value: "nie-token"},
+		{name: "zły typ tokenu", cookie: auth.AccessCookieName, value: mfa},
+		{name: "obcy podpis", cookie: auth.AccessCookieName, value: foreign},
+		{name: "token w innym ciasteczku", cookie: auth.SessionCookieName, value: valid},
+		{name: "sam nagłówek nie wystarcza", header: "Bearer " + valid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if status, _, _ := guardedByCookie(t, tt.cookie, tt.value, tt.header); status != http.StatusUnauthorized {
+				t.Errorf("got %d, want 401", status)
+			}
+		})
+	}
+}

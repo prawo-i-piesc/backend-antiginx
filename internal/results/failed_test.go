@@ -31,7 +31,7 @@ func TestDecodeFailedTask(t *testing.T) {
 
 func TestMarkFailedOnlyTouchesUnfinishedScans(t *testing.T) {
 	db := testDB(t)
-	store := NewStore(db)
+	store := NewStore(db, nil)
 	now := time.Now()
 
 	pending, running, completed, premium := newID(t), newID(t), newID(t), newID(t)
@@ -77,7 +77,7 @@ func TestMarkFailedOnlyTouchesUnfinishedScans(t *testing.T) {
 
 func TestFailedTasksAreMarkedAndAcked(t *testing.T) {
 	db := testDB(t)
-	store := NewStore(db)
+	store := NewStore(db, nil)
 	scanID := newID(t)
 	if err := db.Create(&models.Scan{ID: scanID, TargetURL: "https://huubi.dev", Status: models.ScanStatusPending, CreatedAt: time.Now()}).Error; err != nil {
 		t.Fatal(err)

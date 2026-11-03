@@ -15,29 +15,41 @@ import (
 func RequireAuth(secret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			httpx.Fail(c, httpx.CodeSessionExpired)
-			return
-		}
-
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			httpx.Fail(c, httpx.CodeSessionExpired)
 			return
 		}
+		authenticate(c, secret, strings.TrimPrefix(authHeader, "Bearer "))
+	}
+}
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-
-		claims, err := auth.ParseToken(secret, tokenString, auth.TokenTypeAccess)
+// RequireAccessCookie to RequireAuth dla handshake'u WebSocketa: przeglądarka nie
+// dołoży do niego nagłówka Authorization, a połączenie idzie z pominięciem proxy
+// frontu, które robi to dla REST. Poza takimi trasami token w ciasteczku otwierałby
+// drogę do CSRF, więc muszą też mieć RequireOrigin.
+func RequireAccessCookie(secret []byte) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, err := c.Cookie(auth.AccessCookieName)
 		if err != nil {
 			httpx.Fail(c, httpx.CodeSessionExpired)
 			return
 		}
-
-		c.Set("userID", claims.Subject)
-		c.Set("userRole", claims.Role)
-
-		c.Next()
+		authenticate(c, secret, token)
 	}
+}
+
+func authenticate(c *gin.Context, secret []byte, token string) {
+	claims, err := auth.ParseToken(secret, token, auth.TokenTypeAccess)
+	if err != nil {
+		httpx.Fail(c, httpx.CodeSessionExpired)
+		return
+	}
+
+	c.Set("userID", claims.Subject)
+	c.Set("userRole", claims.Role)
+	c.Set(auth.TokenExpiryKey, claims.ExpiresAt)
+
+	c.Next()
 }
 
 func RequireAdmin(db *gorm.DB) gin.HandlerFunc {
