@@ -9,7 +9,7 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `GET` | `/healthz` | Public | Liveness probe, `200` with `{"status":"ok"}`. No dependencies are checked. |
 | `GET` | `/readyz` | Public | Readiness probe, `200` with `{"db":"up","rabbitmq":"up"}` or `503` when a dependency is down. |
 | `GET` | `/api/health` | Public | Kept for compatibility: `200` with `{"message":"Running..."}`, no dependencies checked. |
-| `POST` | `/api/freescans` | Public | Start a scan with all configured test IDs. |
+| `POST` | `/api/freescans` | Public | Start a scan with every test ID except the active probes (`dir-listing`, `sensitive-files`). |
 | `GET` | `/api/freescans/:id` | Public | Fetch a free scan with results by UUID. |
 | `GET` | `/api/freescans/:id/report` | Public | Download a free scan report (PDF, HTML, Markdown or SARIF). |
 | `POST` | `/api/scans` | Bearer access JWT | Start an account scan with selected tests. |
@@ -56,9 +56,11 @@ Supported test IDs (also returned, grouped, by `GET /api/utils/tests`):
 | --- | --- |
 | SSL/TLS & Encryption | `https`, `hsts`, `ssl-cert` |
 | Security Headers | `csp`, `xframe`, `permissions-policy`, `x-content-type-options`, `referrer-policy`, `cross-origin-x` |
-| Privacy & Session Management | `cookie-sec` |
-| Reconnaissance & Server Information | `serv-h-a`, `sitemap`, `bot-protection` |
-| Vulnerabilities & Code Analysis | `js-obf`, `phishing-url`, `dns-reputation`, `favicon-origin`, `credential-form` |
+| Privacy & Session Management | `cookie-sec`, `cache-control` |
+| Reconnaissance & Server Information | `serv-h-a`, `sitemap`, `robots-txt`, `bot-protection` |
+| Vulnerabilities & Code Analysis | `js-obf`, `phishing-url`, `dns-reputation`, `urlhaus`, `favicon-origin`, `dir-listing`, `sensitive-files` |
+
+The list has to match the engine's (`--tests` in `App/parser/config/paramregistry.go`): one ID the engine does not know fails the whole scan before any test runs. `dir-listing` and `sensitive-files` request paths the site does not advertise, so they run only in signed-in scans, never in anonymous free scans. `urlhaus` reports an `Info` result without checking anything unless the daemon has `ANTIGINX_URLHAUS_AUTH_KEY`.
 
 Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different user receives `404`. `GET /api/users/scans` returns that user's scan list, while `GET /api/users/widgets` returns dashboard aggregates.
 

@@ -88,6 +88,9 @@ type TestCategoryGroup struct {
 	Tests        []string `json:"tests"`
 }
 
+// CategorizedTests to wszystkie testy silnika, które można zlecić. Identyfikator
+// spoza listy silnika (--tests w App/parser/config/paramregistry.go) wywraca
+// całe zadanie, zanim ruszy jakikolwiek test, więc lista ma się z nią zgadzać.
 var CategorizedTests = []TestCategoryGroup{
 	{
 		CategoryName: "SSL/TLS & Encryption",
@@ -99,15 +102,15 @@ var CategorizedTests = []TestCategoryGroup{
 	},
 	{
 		CategoryName: "Privacy & Session Management",
-		Tests:        []string{"cookie-sec"},
+		Tests:        []string{"cookie-sec", "cache-control"},
 	},
 	{
 		CategoryName: "Reconnaissance & Server Information",
-		Tests:        []string{"serv-h-a", "sitemap", "bot-protection"},
+		Tests:        []string{"serv-h-a", "sitemap", "robots-txt", "bot-protection"},
 	},
 	{
 		CategoryName: "Vulnerabilities & Code Analysis",
-		Tests:        []string{"js-obf", "phishing-url", "dns-reputation", "favicon-origin", "credential-form"},
+		Tests:        []string{"js-obf", "phishing-url", "dns-reputation", "urlhaus", "favicon-origin", "dir-listing", "sensitive-files"},
 	},
 }
 
@@ -115,6 +118,25 @@ var AvailableTestsList = func() []string {
 	var list []string
 	for _, group := range CategorizedTests {
 		list = append(list, group.Tests...)
+	}
+	return list
+}()
+
+// activeProbeTests odpytują cel o ścieżki, których strona sama nie podaje (.env,
+// .git, kopie zapasowe, katalogi). Darmowy skan zleca każdy anonimowo i bez
+// oświadczenia o upoważnieniu, więc te testy działają tylko po zalogowaniu.
+var activeProbeTests = map[string]bool{
+	"dir-listing":     true,
+	"sensitive-files": true,
+}
+
+// FreeScanTests to testy darmowego skanu: wszystkie oprócz aktywnych.
+var FreeScanTests = func() []string {
+	var list []string
+	for _, test := range AvailableTestsList {
+		if !activeProbeTests[test] {
+			list = append(list, test)
+		}
 	}
 	return list
 }()
@@ -170,7 +192,7 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 		return
 	}
 
-	if !h.queueScan(c, &models.Scan{}, newScan.ID, target, AvailableTestsList, false) {
+	if !h.queueScan(c, &models.Scan{}, newScan.ID, target, FreeScanTests, false) {
 		return
 	}
 

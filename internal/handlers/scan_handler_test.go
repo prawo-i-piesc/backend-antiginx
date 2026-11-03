@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -93,4 +94,37 @@ func send(t *testing.T, r *gin.Engine, method, path, body string) *httptest.Resp
 func get(t *testing.T, r *gin.Engine, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	return send(t, r, http.MethodGet, path, "")
+}
+
+// Lista silnika z --tests w App/parser/config/paramregistry.go. Identyfikator,
+// którego silnik nie zna, wywraca całe zadanie, więc skan kończy się FAILED bez
+// wyników. Ten test nie widzi repozytorium silnika: pilnuje listy przed
+// przypadkową zmianą, a przy zmianie w silniku trzeba go poprawić razem z nią.
+var engineTests = []string{
+	"https", "hsts", "serv-h-a", "csp", "cookie-sec", "js-obf", "xframe", "permissions-policy",
+	"x-content-type-options", "referrer-policy", "ssl-cert", "cross-origin-x", "sitemap", "robots-txt",
+	"dir-listing", "sensitive-files", "phishing-url", "bot-protection", "dns-reputation", "urlhaus",
+	"favicon-origin", "cache-control",
+}
+
+func TestCatalogueMatchesTheEngine(t *testing.T) {
+	got := slices.Sorted(slices.Values(AvailableTestsList))
+	want := slices.Sorted(slices.Values(engineTests))
+	if !slices.Equal(got, want) {
+		t.Errorf("katalog testów = %v\nwant %v", got, want)
+	}
+}
+
+func TestFreeScanLeavesOutActiveProbes(t *testing.T) {
+	for _, probe := range []string{"dir-listing", "sensitive-files"} {
+		if slices.Contains(FreeScanTests, probe) {
+			t.Errorf("anonimowy skan zleca aktywny test %s", probe)
+		}
+		if !AllowedPremiumTests[probe] {
+			t.Errorf("skan po zalogowaniu nie może zlecić %s", probe)
+		}
+	}
+	if want := len(AvailableTestsList) - 2; len(FreeScanTests) != want {
+		t.Errorf("darmowy skan ma %d testów, want %d", len(FreeScanTests), want)
+	}
 }
