@@ -66,4 +66,4 @@ stripe listen --forward-to localhost:3000/api/billing/webhook
 
 ## 🔐 Gating features
 
-`billing.UserPlan(db, userID)` reads the plan from the database without calling Stripe, so it is cheap enough to check on every request. Paid features (scheduled scans, premium tests) should check it on the backend; the `plan` field in `/api/auth/me` is only for the interface.
+`billing.UserPlan(db, userID)` reads the plan from the database without calling Stripe, so it is cheap enough to check on every request. Paid features check it on the backend; the `plan` field in `/api/auth/me` is only for the interface. Today that is the Pro tests (`dir-listing`, `sensitive-files`), refused with `403 PRO_REQUIRED` on other plans; see [Scans](./Scans.md). With billing off everyone is on Free, so those tests are off too. Scheduled scans should follow the same way.
