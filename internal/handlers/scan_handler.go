@@ -6,11 +6,13 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/auth"
+	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -86,6 +88,8 @@ type UserDashboardScan struct {
 type TestCategoryGroup struct {
 	CategoryName string   `json:"category"`
 	Tests        []string `json:"tests"`
+	// ProTests to te z Tests, które wymagają planu Pro.
+	ProTests []string `json:"pro_tests,omitempty"`
 }
 
 // CategorizedTests to wszystkie testy silnika, które można zlecić. Identyfikator
@@ -111,6 +115,9 @@ var CategorizedTests = []TestCategoryGroup{
 	{
 		CategoryName: "Vulnerabilities & Code Analysis",
 		Tests:        []string{"js-obf", "phishing-url", "dns-reputation", "urlhaus", "favicon-origin", "dir-listing", "sensitive-files"},
+		// Odpytują cel o ścieżki, których strona sama nie podaje (.env, .git, kopie
+		// zapasowe, katalogi), więc są tylko dla płacących, nigdy w anonimowym skanie.
+		ProTests: []string{"dir-listing", "sensitive-files"},
 	},
 }
 
@@ -122,19 +129,21 @@ var AvailableTestsList = func() []string {
 	return list
 }()
 
-// activeProbeTests odpytują cel o ścieżki, których strona sama nie podaje (.env,
-// .git, kopie zapasowe, katalogi). Darmowy skan zleca każdy anonimowo i bez
-// oświadczenia o upoważnieniu, więc te testy działają tylko po zalogowaniu.
-var activeProbeTests = map[string]bool{
-	"dir-listing":     true,
-	"sensitive-files": true,
-}
+var proTests = func() map[string]bool {
+	m := make(map[string]bool)
+	for _, group := range CategorizedTests {
+		for _, test := range group.ProTests {
+			m[test] = true
+		}
+	}
+	return m
+}()
 
-// FreeScanTests to testy darmowego skanu: wszystkie oprócz aktywnych.
+// FreeScanTests to testy darmowego skanu: wszystkie oprócz tych z planu Pro.
 var FreeScanTests = func() []string {
 	var list []string
 	for _, test := range AvailableTestsList {
-		if !activeProbeTests[test] {
+		if !proTests[test] {
 			list = append(list, test)
 		}
 	}
@@ -230,6 +239,17 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 		return
 	}
 
+	allowed, err := h.mayRunTests(userID, validTests)
+	if err != nil {
+		log.Printf("PremiumScan: nie udało się odczytać planu %s: %v", userID, err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+	if !allowed {
+		httpx.Fail(c, httpx.CodeProRequired)
+		return
+	}
+
 	newScanID, err := uuid.NewV7()
 	if err != nil {
 		log.Printf("PremiumScan: nie udało się wygenerować UUIDv7: %v", err)
@@ -259,6 +279,19 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 		"scanId": newScan.ID.String(),
 		"status": newScan.Status,
 	})
+}
+
+// mayRunTests mówi, czy plan konta obejmuje wszystkie zlecone testy. Bazę czyta
+// tylko wtedy, gdy na liście jest test z planu Pro.
+func (h *ScanHandler) mayRunTests(userID uuid.UUID, tests []string) (bool, error) {
+	if !slices.ContainsFunc(tests, func(test string) bool { return proTests[test] }) {
+		return true, nil
+	}
+	plan, err := billing.UserPlan(h.db, userID)
+	if err != nil {
+		return false, err
+	}
+	return plan == models.PlanPro, nil
 }
 
 // validTarget odrzuca target_url, którego nie wolno skanować, i zwraca adres

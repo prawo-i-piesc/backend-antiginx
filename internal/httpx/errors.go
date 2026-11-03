@@ -55,6 +55,7 @@ const (
 	CodeQueueUnavailable Code = "QUEUE_UNAVAILABLE"
 	CodeScanNotFinished  Code = "SCAN_NOT_FINISHED"
 
+	CodeProRequired            Code = "PRO_REQUIRED"
 	CodeBillingDisabled        Code = "BILLING_DISABLED"
 	CodeBillingUnavailable     Code = "BILLING_UNAVAILABLE"
 	CodeAlreadySubscribed      Code = "ALREADY_SUBSCRIBED"
@@ -117,6 +118,7 @@ var codeTable = map[Code]codeInfo{
 	CodeQueueUnavailable: {http.StatusServiceUnavailable, "Scan queue is unavailable, try again later"},
 	CodeScanNotFinished:  {http.StatusConflict, "Scan has not finished yet"},
 
+	CodeProRequired:            {http.StatusForbidden, "This feature requires the Pro plan"},
 	CodeBillingDisabled:        {http.StatusNotFound, "Payments are not enabled on this server"},
 	CodeBillingUnavailable:     {http.StatusBadGateway, "The payment provider is unavailable, try again later"},
 	CodeAlreadySubscribed:      {http.StatusConflict, "You already have an active subscription"},
