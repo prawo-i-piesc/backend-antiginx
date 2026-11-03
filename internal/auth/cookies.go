@@ -10,6 +10,10 @@ import (
 
 const SessionCookieName = "ag_session"
 
+// AccessCookieName to ciasteczko, w którym proxy frontu (app/api/[...path]) trzyma
+// token dostępu. Czytane tylko przy handshake'u WebSocketa, patrz RequireAccessCookie.
+const AccessCookieName = "ag_access"
+
 func SetSessionCookie(c *gin.Context, token string, ttl time.Duration, secure bool) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(SessionCookieName, token, int(ttl.Seconds()), "/", "", secure, true)

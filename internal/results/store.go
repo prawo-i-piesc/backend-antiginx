@@ -19,14 +19,27 @@ const (
 	insertBatchSize       = 100
 )
 
+// Notifier zgłasza, w transakcji zapisu, że te skany się zmieniły. Błąd cofa
+// transakcję.
+type Notifier func(tx *gorm.DB, ids []uuid.UUID) error
+
 // Store zapisuje paczkę wiadomości jedną transakcją: wiersze wyników i
 // przejścia statusów skanów albo wchodzą razem, albo wcale.
 type Store struct {
-	db *gorm.DB
+	db     *gorm.DB
+	notify Notifier
 }
 
-func NewStore(db *gorm.DB) *Store {
-	return &Store{db: db}
+// NewStore tworzy zapis wyników; notify może być nil, gdy nikogo to nie obchodzi.
+func NewStore(db *gorm.DB, notify Notifier) *Store {
+	return &Store{db: db, notify: notify}
+}
+
+func (s *Store) changed(tx *gorm.DB, ids []uuid.UUID) error {
+	if s.notify == nil || len(ids) == 0 {
+		return nil
+	}
+	return s.notify(tx, ids)
 }
 
 func (s *Store) SaveBatch(ctx context.Context, batch []message) error {
@@ -85,7 +98,7 @@ func (s *Store) SaveBatch(ctx context.Context, batch []message) error {
 				}
 			}
 		}
-		return nil
+		return s.changed(tx, touched)
 	})
 }
 

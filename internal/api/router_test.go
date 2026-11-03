@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/internal/live"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"github.com/prawo-i-piesc/backend/internal/monitoring"
 	"gorm.io/gorm"
@@ -66,6 +68,7 @@ func routerWithProbes(t *testing.T, cfg *config.Config, probes []monitoring.Prob
 		handlers.NewBillingHandler(nil, billingService, ""),
 		handlers.NewDashboardHandler(nil),
 		handlers.NewSystemHandler(nil, probes, nil, ""),
+		handlers.NewLiveHandler(nil, live.NewHub()),
 		cfg,
 		probes,
 	)
@@ -761,7 +764,7 @@ func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
 	r := NewRouter(handlers.NewScanHandler(nil, db, false), authHandler, handlers.NewAdminHandler(db, nil, billingService),
-		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), cfg, nil)
+		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), handlers.NewLiveHandler(db, live.NewHub()), cfg, nil)
 
 	// Rola w tokenie kłamie: RequireAdmin ma patrzeć do bazy, nie w claim.
 	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleAdmin, time.Minute)
@@ -796,5 +799,129 @@ func TestFreeScanRejectsLoopbackTarget(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"target_url":"not_public"`) {
 		t.Errorf("body = %s, want fields.target_url = not_public", w.Body)
+	}
+}
+
+// liveRouter to prawdziwy router z bazą: skan z konta jana i darmowy skan, oba w toku.
+func liveRouter(t *testing.T) (url string, cfg *config.Config, userID, premiumID, freeID uuid.UUID) {
+	t.Helper()
+	cfg = testConfig()
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "test.db")), &gorm.Config{Logger: logger.Discard})
+	if err != nil {
+		t.Fatalf("baza testowa: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.Scan{}, &models.PremiumScan{}, &models.ScanResult{}); err != nil {
+		t.Fatalf("migracja: %v", err)
+	}
+
+	userID, premiumID, freeID = uuid.New(), uuid.New(), uuid.New()
+	if err := db.Create(&models.User{ID: userID, Email: "jan@example.com", Role: models.UserRoleUser}).Error; err != nil {
+		t.Fatalf("zasianie konta: %v", err)
+	}
+	if err := db.Create(&models.PremiumScan{ID: premiumID, UserID: userID, TargetURL: "https://example.com", Status: models.ScanStatusRunning, CreatedAt: time.Now()}).Error; err != nil {
+		t.Fatalf("zasianie skanu: %v", err)
+	}
+	if err := db.Create(&models.Scan{ID: freeID, TargetURL: "https://example.com", Status: models.ScanStatusRunning, CreatedAt: time.Now()}).Error; err != nil {
+		t.Fatalf("zasianie skanu: %v", err)
+	}
+
+	billingService := billing.New(db, nil, "", "")
+	authHandler, err := handlers.NewAuthHandler(db, cfg, billingService)
+	if err != nil {
+		t.Fatalf("NewAuthHandler: %v", err)
+	}
+	hub := live.NewHub()
+	r := NewRouter(handlers.NewScanHandler(nil, db, false), authHandler, handlers.NewAdminHandler(db, nil, billingService),
+		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), handlers.NewLiveHandler(db, hub), cfg, nil)
+
+	server := httptest.NewServer(r)
+	t.Cleanup(func() {
+		hub.Shutdown()
+		server.Close()
+	})
+	return "ws" + strings.TrimPrefix(server.URL, "http"), cfg, userID, premiumID, freeID
+}
+
+func dialLive(t *testing.T, url string, header http.Header) (*websocket.Conn, *http.Response, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, resp, err := websocket.Dial(ctx, url, &websocket.DialOptions{HTTPHeader: header})
+	if conn != nil {
+		t.Cleanup(func() { _ = conn.CloseNow() })
+	}
+	return conn, resp, err
+}
+
+func TestLiveRoutesRefuseBeforeUpgrade(t *testing.T) {
+	url, cfg, userID, premiumID, freeID := liveRouter(t)
+	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleUser, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	cookie := auth.AccessCookieName + "=" + token
+	premium, free := url+"/api/live/scans/"+premiumID.String(), url+"/api/live/freescans/"+freeID.String()
+	// CORS przepuszcza Origin równy adresowi samego backendu, więc to jedyny
+	// przypadek, w którym o odmowie decyduje RequireOrigin na grupie tras.
+	ownHost := "http" + strings.TrimPrefix(url, "ws")
+
+	tests := []struct {
+		name   string
+		url    string
+		header http.Header
+		want   int
+	}{
+		// Obca strona nie otworzy połączenia ciasteczkiem odwiedzającego.
+		{"obcy Origin z ważnym ciasteczkiem", premium, http.Header{"Origin": {"https://evil.example"}, "Cookie": {cookie}}, http.StatusForbidden},
+		{"obcy Origin na darmowym skanie", free, http.Header{"Origin": {"https://evil.example"}}, http.StatusForbidden},
+		{"Origin backendu zamiast frontu", premium, http.Header{"Origin": {ownHost}, "Cookie": {cookie}}, http.StatusForbidden},
+		{"skan z konta bez ciasteczka", premium, http.Header{"Origin": {frontendOrigin}}, http.StatusUnauthorized},
+		{"skan z konta z samym nagłówkiem", premium, http.Header{"Origin": {frontendOrigin}, "Authorization": {"Bearer " + token}}, http.StatusUnauthorized},
+		{"skan z konta przez darmową trasę", url + "/api/live/freescans/" + premiumID.String(), http.Header{"Origin": {frontendOrigin}}, http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, resp, err := dialLive(t, tt.url, tt.header)
+			if err == nil {
+				t.Fatal("połączenie zostało przyjęte")
+			}
+			if resp == nil || resp.StatusCode != tt.want {
+				t.Errorf("odpowiedź = %v, want %d", resp, tt.want)
+			}
+		})
+	}
+}
+
+func TestLiveRoutesUpgradeForTheFrontendOrigin(t *testing.T) {
+	url, cfg, userID, premiumID, freeID := liveRouter(t)
+	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleUser, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		url    string
+		header http.Header
+	}{
+		{"skan z konta", url + "/api/live/scans/" + premiumID.String(), http.Header{"Origin": {frontendOrigin}, "Cookie": {auth.AccessCookieName + "=" + token}}},
+		{"darmowy skan", url + "/api/live/freescans/" + freeID.String(), http.Header{"Origin": {frontendOrigin}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, _, err := dialLive(t, tt.url, tt.header)
+			if err != nil {
+				t.Fatalf("Dial: %v", err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, data, err := conn.Read(ctx)
+			if err != nil {
+				t.Fatalf("Read: %v", err)
+			}
+			if !strings.Contains(string(data), `"type":"snapshot"`) {
+				t.Errorf("pierwsza wiadomość: %s", data)
+			}
+		})
 	}
 }

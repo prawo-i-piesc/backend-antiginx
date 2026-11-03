@@ -2,6 +2,7 @@ package results
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -58,7 +59,7 @@ func decoded(t *testing.T, raw []byte) message {
 
 func TestSaveBatchMovesFreeScanToRunningAndCompletes(t *testing.T) {
 	db := testDB(t)
-	store := NewStore(db)
+	store := NewStore(db, nil)
 	scanID := newID(t)
 	if err := db.Create(&models.Scan{ID: scanID, TargetURL: "https://example.com", Status: models.ScanStatusPending, CreatedAt: time.Now()}).Error; err != nil {
 		t.Fatalf("zasianie skanu: %v", err)
@@ -115,7 +116,7 @@ func TestSaveBatchRecordsEngineMessagesForPremiumScans(t *testing.T) {
 		t.Fatalf("zasianie skanu: %v", err)
 	}
 
-	if err := NewStore(db).SaveBatch(context.Background(), []message{decoded(t, body(scanID, "", "", false, Message))}); err != nil {
+	if err := NewStore(db, nil).SaveBatch(context.Background(), []message{decoded(t, body(scanID, "", "", false, Message))}); err != nil {
 		t.Fatalf("SaveBatch: %v", err)
 	}
 
@@ -165,7 +166,7 @@ func TestSaveBatchHandlesPendingScanFinishedInOneBatch(t *testing.T) {
 		t.Fatalf("zasianie skanu: %v", err)
 	}
 
-	err := NewStore(db).SaveBatch(context.Background(), []message{
+	err := NewStore(db, nil).SaveBatch(context.Background(), []message{
 		decoded(t, body(scanID, "https", "Info", false, Success)),
 		decoded(t, body(scanID, "", "", true, Message)),
 	})
@@ -184,7 +185,7 @@ func TestSaveBatchHandlesPendingScanFinishedInOneBatch(t *testing.T) {
 
 func TestSaveBatchSkipsResultsAlreadyStored(t *testing.T) {
 	db := testDB(t)
-	store := NewStore(db)
+	store := NewStore(db, nil)
 	scanID := newID(t)
 	if err := db.Create(&models.Scan{ID: scanID, TargetURL: "https://example.com", Status: models.ScanStatusPending, CreatedAt: time.Now()}).Error; err != nil {
 		t.Fatalf("zasianie skanu: %v", err)
@@ -265,7 +266,7 @@ func TestSaveBatchSkipsUnknownScans(t *testing.T) {
 		t.Fatalf("zasianie skanu: %v", err)
 	}
 
-	err := NewStore(db).SaveBatch(context.Background(), []message{
+	err := NewStore(db, nil).SaveBatch(context.Background(), []message{
 		decoded(t, body(newID(t), "https", "High", false, Success)),
 		decoded(t, body(known, "hsts", "High", false, Success)),
 	})
@@ -289,7 +290,7 @@ func TestSaveBatchDoesNotCompleteFailedScans(t *testing.T) {
 		t.Fatalf("zasianie skanu: %v", err)
 	}
 
-	if err := NewStore(db).SaveBatch(context.Background(), []message{decoded(t, body(scanID, "", "", true, Message))}); err != nil {
+	if err := NewStore(db, nil).SaveBatch(context.Background(), []message{decoded(t, body(scanID, "", "", true, Message))}); err != nil {
 		t.Fatalf("SaveBatch: %v", err)
 	}
 
@@ -320,5 +321,71 @@ func TestDecodeRejectsBadMessages(t *testing.T) {
 				t.Error("decode przyjął niepoprawną wiadomość")
 			}
 		})
+	}
+}
+
+func TestSaveBatchReportsChangedScansInsideTheTransaction(t *testing.T) {
+	db := testDB(t)
+	scanID := newID(t)
+	if err := db.Create(&models.Scan{ID: scanID, TargetURL: "https://example.com", Status: models.ScanStatusPending, CreatedAt: time.Now()}).Error; err != nil {
+		t.Fatalf("zasianie skanu: %v", err)
+	}
+
+	var reported []uuid.UUID
+	var rowsSeen int64
+	store := NewStore(db, func(tx *gorm.DB, ids []uuid.UUID) error {
+		reported = ids
+		// W tej samej transakcji: wiersze już tu są, choć jeszcze nie po commicie.
+		return tx.Model(&models.ScanResult{}).Where("scan_id = ?", scanID).Count(&rowsSeen).Error
+	})
+
+	err := store.SaveBatch(context.Background(), []message{decoded(t, body(scanID, "https", "High", false, Success))})
+	if err != nil {
+		t.Fatalf("SaveBatch: %v", err)
+	}
+	if len(reported) == 0 || reported[0] != scanID {
+		t.Errorf("zgłoszono %v, want %s", reported, scanID)
+	}
+	if rowsSeen != 1 {
+		t.Errorf("w chwili zgłoszenia widać %d wierszy, want 1", rowsSeen)
+	}
+}
+
+func TestSaveBatchRollsBackWhenReportingFails(t *testing.T) {
+	db := testDB(t)
+	scanID := newID(t)
+	if err := db.Create(&models.Scan{ID: scanID, TargetURL: "https://example.com", Status: models.ScanStatusPending, CreatedAt: time.Now()}).Error; err != nil {
+		t.Fatalf("zasianie skanu: %v", err)
+	}
+
+	store := NewStore(db, func(*gorm.DB, []uuid.UUID) error { return errors.New("sygnał nie poszedł") })
+	if err := store.SaveBatch(context.Background(), []message{decoded(t, body(scanID, "https", "High", false, Success))}); err == nil {
+		t.Fatal("SaveBatch powinien zwrócić błąd")
+	}
+
+	var rows int64
+	db.Model(&models.ScanResult{}).Where("scan_id = ?", scanID).Count(&rows)
+	if rows != 0 {
+		t.Errorf("po cofnięciu zostało %d wierszy", rows)
+	}
+}
+
+func TestMarkFailedReportsChangedScans(t *testing.T) {
+	db := testDB(t)
+	scanID := newID(t)
+	if err := db.Create(&models.Scan{ID: scanID, TargetURL: "https://example.com", Status: models.ScanStatusRunning, CreatedAt: time.Now()}).Error; err != nil {
+		t.Fatalf("zasianie skanu: %v", err)
+	}
+
+	var reported []uuid.UUID
+	store := NewStore(db, func(_ *gorm.DB, ids []uuid.UUID) error {
+		reported = ids
+		return nil
+	})
+	if err := store.MarkFailed(context.Background(), []uuid.UUID{scanID}); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+	if len(reported) != 1 || reported[0] != scanID {
+		t.Errorf("zgłoszono %v, want %s", reported, scanID)
 	}
 }

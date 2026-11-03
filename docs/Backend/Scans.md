@@ -12,9 +12,11 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `POST` | `/api/freescans` | Public | Start a scan with every test ID except the Pro ones (`dir-listing`, `sensitive-files`). |
 | `GET` | `/api/freescans/:id` | Public | Fetch a free scan with results by UUID. |
 | `GET` | `/api/freescans/:id/report` | Public | Download a free scan report (PDF, HTML, Markdown or SARIF). |
+| `GET` (WebSocket) | `/api/live/freescans/:id` | Public, `Origin` checked | Follow a free scan live; see [Live scan stream](#-live-scan-stream). |
 | `POST` | `/api/scans` | Bearer access JWT | Start an account scan with selected tests. |
 | `GET` | `/api/scans/:id` | Bearer access JWT | Fetch the current user's account scan. |
 | `GET` | `/api/scans/:id/report` | Bearer access JWT | Download a report of the current user's account scan. |
+| `GET` (WebSocket) | `/api/live/scans/:id` | `ag_access` cookie, `Origin` checked | Follow the current user's account scan live; see [Live scan stream](#-live-scan-stream). |
 | `GET` | `/api/users/scans` | Bearer access JWT | List the current user's premium scans with results. |
 | `GET` | `/api/users/widgets` | Bearer access JWT | Counts (`total_scans`, `detected_threats`, `safe_sites`) and up to four `recent_scans`. |
 | `GET` | `/api/utils/tests` | Bearer access JWT | Grouped test IDs available to premium scans. |
@@ -36,7 +38,7 @@ The request requires a `target_url` pointing at a public `http(s)` host (see [Er
 {"scanId":"<uuid>","status":"PENDING"}
 ```
 
-Poll `GET /api/freescans/<uuid>`; this route is public. It returns `id`, `target_url`, `status`, `created_at`, `started_at`, `completed_at`, and `results`. Timestamps are null until set. `results` entries contain `id`, `scan_id`, `test_name`, `severity`, `passed`, `message` and `metadata`.
+Poll `GET /api/freescans/<uuid>`; this route is public. It returns `id`, `target_url`, `status`, `created_at`, `started_at`, `completed_at`, `tests` (the test IDs requested, null on scans older than this field) and `results`. Timestamps are null until set. `results` entries contain `id`, `scan_id`, `test_name`, `severity`, `passed`, `message` and `metadata`.
 
 ## 🔐 Submit an account scan
 
@@ -65,6 +67,38 @@ The list has to match the engine's (`--tests` in `App/parser/config/paramregistr
 `dir-listing` and `sensitive-files` request paths the site does not advertise (`.env`, `.git`, backups, directories), so they need the **Pro** plan and never run in anonymous free scans. `GET /api/utils/tests` names them in each group's `pro_tests`. A scan that asks for one on another plan answers `403 PRO_REQUIRED` and nothing is queued, rather than quietly running the rest.
 
 Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different user receives `404`. `GET /api/users/scans` returns that user's scan list, while `GET /api/users/widgets` returns dashboard aggregates.
+
+## 🔴 Live scan stream
+
+`/api/live/*` upgrades to a WebSocket that sends a scan's state and every change to it. It is an accelerator, not a second source of truth: everything it sends can also be read from `GET /api/freescans/:id` or `GET /api/scans/:id`, so a client that cannot connect can poll those instead.
+
+**Routing.** A Next.js route handler cannot pass an upgrade through, so the frontend's `/api` proxy does not carry this. The ingress must send the `/api/live` prefix straight to the backend, as `apps/antiginx/frontend/ingress.yaml` does in the infrastructure repository.
+
+**Access.** A browser cannot set `Authorization` on a WebSocket, so account scans read the access token from the `ag_access` cookie, the one the frontend's proxy keeps it in. Only these routes accept it there, and an `Origin`, which browsers always send here, must match `PUBLIC_BASE_URL`, so another site cannot open a connection with a visitor's cookie. Refusals are ordinary HTTP responses sent before the upgrade: `400 VALIDATION_FAILED` for a malformed ID, `403` for a foreign `Origin`, `401 SESSION_EXPIRED`, `404 SCAN_NOT_FOUND` (also for someone else's scan) and `429 RATE_LIMITED`. A connection is limited to 12 at a time per account or address, 500 per process, and 120 new connections per minute per address.
+
+**Messages** are JSON text frames from the server; the client sends nothing:
+
+| `type` | Fields | Meaning |
+| --- | --- | --- |
+| `snapshot` | `scan` | The whole scan with the fields of the REST response, without its owner. Always first, and again after every reconnect, so there is no replay to manage. |
+| `results` | `results` | Result rows not sent yet on this connection. Rows from two consumers can commit out of `id` order, so `id` says nothing about what has been seen; merge by `id` across reconnects. |
+| `status` | `status`, `started_at`, `completed_at` | The scan's state changed. |
+| `heartbeat` | | Sent about every 20 seconds, once the client has answered a ping. JavaScript cannot see ping frames, so a silence of 50 seconds means the link is dead. |
+
+**Closing.** The stream ends with a close code that says what to do next:
+
+| Code | Meaning | Client should |
+| --- | --- | --- |
+| `1000` | The scan finished; the final state has been sent. | Stop. |
+| `1001` | The server is restarting. | Reconnect. |
+| `4401` | The access token expired. | Refresh the session, then reconnect. |
+| `4404` | The scan was deleted. | Stop. |
+| `4408` | The connection reached its 15-minute limit, which is what ends a stream for a scan that never finishes. | Reconnect while still interested. |
+| Any other, such as `1011` or `1013` | Something went wrong on the way. `1013` means the last read failed, so the client may be missing results. | Reconnect with a backoff. |
+
+A scan's final `status` is held back for a second, because messages are spread over several consumers and the end message can be committed just before the last results. A batch whose save failed can land later still, so a client should read the scan over REST once after `1000`.
+
+**How changes travel.** The transaction that saves results also sends `pg_notify('scan_events', <scanId>)`. Postgres delivers it only after the commit, and to every replica, so it does not matter which one consumed the message. Each connection then reads from the database whatever it has not sent yet. Each one also rereads every 5 seconds, so a lost notification or a dropped `LISTEN` connection only delays a result. No state is buffered per client, so a slow client cannot grow the server's memory: anything it cannot take yet stays in the database, and a write stuck for 10 seconds closes the connection.
 
 ## 📄 Scan reports
 

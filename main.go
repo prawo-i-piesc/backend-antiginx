@@ -35,6 +35,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/config"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
+	"github.com/prawo-i-piesc/backend/internal/live"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"github.com/prawo-i-piesc/backend/internal/monitoring"
 	"github.com/prawo-i-piesc/backend/internal/results"
@@ -44,6 +45,14 @@ import (
 )
 
 var errBrokerClosed = errors.New("kanał RabbitMQ jest zamknięty")
+
+// Pula połączeń z bazą. Podgląd na żywo czyta z niej regularnie, a po przerwie w
+// sygnałach budzi wszystkie połączenia naraz; bez górnej granicy taki skok
+// wyczerpałby max_connections Postgresa i zablokował też zapis wyników i logowanie.
+const (
+	maxOpenDBConns = 30
+	maxIdleDBConns = 10
+)
 
 // main initializes and starts the backend-antiginx API server.
 //
@@ -80,6 +89,8 @@ func main() {
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("Błąd pingowania bazy danych: %v", err)
 	}
+	sqlDB.SetMaxOpenConns(maxOpenDBConns)
+	sqlDB.SetMaxIdleConns(maxIdleDBConns)
 	log.Println("Połączono z bazą danych przy użyciu GORM")
 
 	if err := models.DeleteOrphanPreferences(db); err != nil {
@@ -173,9 +184,12 @@ func main() {
 	}
 	systemHandler := handlers.NewSystemHandler(db, probes, prometheus, cfg.GrafanaURL)
 
+	liveHub := live.NewHub()
+	liveHandler := handlers.NewLiveHandler(db, liveHub)
+
 	srv := &http.Server{
 		Addr:              ":4000",
-		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, systemHandler, cfg, probes),
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, systemHandler, liveHandler, cfg, probes),
 		MaxHeaderBytes:    64 << 10,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -186,7 +200,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	consumer := results.NewConsumer(conn, results.NewStore(db), cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
+	consumer := results.NewConsumer(conn, results.NewStore(db, live.Publish), cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
 	consumerDone := make(chan struct{})
 	go func() {
 		defer close(consumerDone)
@@ -199,7 +213,7 @@ func main() {
 	}()
 	log.Printf("Odbieram wyniki z %s (%d odbiorców, paczki po %d)", cfg.ResultsQueue, cfg.ResultConsumers, cfg.ResultBatchSize)
 
-	failedTasks := results.NewFailedTasks(conn, results.NewStore(db), results.FailedQueue)
+	failedTasks := results.NewFailedTasks(conn, results.NewStore(db, live.Publish), results.FailedQueue)
 	failedDone := make(chan struct{})
 	go func() {
 		defer close(failedDone)
@@ -209,6 +223,12 @@ func main() {
 			log.Printf("Odbiór nieudanych zadań zatrzymany: %v", err)
 			stop()
 		}
+	}()
+
+	liveListenerDone := make(chan struct{})
+	go func() {
+		defer close(liveListenerDone)
+		live.NewListener(cfg.DatabaseURL, liveHub).Run(ctx)
 	}()
 
 	billingDone := make(chan struct{})
@@ -230,9 +250,13 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// Shutdown nie obejmuje połączeń przejętych przez WebSocket.
+	liveHub.Shutdown()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Serwer nie zamknął się w wyznaczonym czasie: %v", err)
 	}
+	liveHub.Wait(shutdownCtx)
+	<-liveListenerDone
 	<-consumerDone
 	<-failedDone
 	<-billingDone

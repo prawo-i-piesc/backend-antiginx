@@ -25,11 +25,16 @@ var (
 	ErrTokenWrongType = errors.New("auth: token has unexpected type")
 )
 
+// TokenExpiryKey to klucz w kontekście żądania, pod którym middleware zostawia
+// koniec ważności tokenu.
+const TokenExpiryKey = "tokenExpiresAt"
+
 type Claims struct {
-	ID      string
-	Subject string
-	Role    string
-	Type    string
+	ID        string
+	Subject   string
+	Role      string
+	Type      string
+	ExpiresAt time.Time
 }
 
 func GenerateToken(secret []byte, tokenType, subject, role string, ttl time.Duration) (string, error) {
@@ -104,11 +109,18 @@ func ParseToken(secret []byte, tokenString, expectedType string) (*Claims, error
 	role, _ := claims["role"].(string)
 	id, _ := claims["jti"].(string)
 
+	// Wymaga go WithExpirationRequired, więc tu już jest.
+	expires, err := claims.GetExpirationTime()
+	if err != nil || expires == nil {
+		return nil, ErrTokenInvalid
+	}
+
 	return &Claims{
-		ID:      id,
-		Subject: strings.TrimSpace(subject),
-		Role:    normalizeRole(role),
-		Type:    tokenType,
+		ID:        id,
+		Subject:   strings.TrimSpace(subject),
+		Role:      normalizeRole(role),
+		Type:      tokenType,
+		ExpiresAt: expires.Time,
 	}, nil
 }
 

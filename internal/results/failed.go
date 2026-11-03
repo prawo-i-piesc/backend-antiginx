@@ -89,7 +89,7 @@ func (s *Store) MarkFailed(ctx context.Context, ids []uuid.UUID) error {
 			}
 			marked += res.RowsAffected
 		}
-		return nil
+		return s.changed(tx, ids)
 	})
 	if err != nil {
 		return err

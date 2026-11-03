@@ -22,7 +22,7 @@ var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
 const maxRequestBody = 1 << 20
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, systemHandler *handlers.SystemHandler, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, systemHandler *handlers.SystemHandler, liveHandler *handlers.LiveHandler, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
@@ -62,6 +62,16 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		public.GET("/freescans/:id", scanHandler.HandleGetScan)
 		public.GET("/freescans/:id/report", scanHandler.HandleFreeScanReport)
 		public.GET("/health", scanHandler.HandleHealthCheck)
+	}
+
+	// WebSockety mają własny prefiks: ingress kieruje go wprost do backendu, bo
+	// proxy frontu (route handler Nexta) nie przepuści upgrade'u. Origin jest tu
+	// obowiązkową ochroną, bo skan z konta uwierzytelnia ciasteczko.
+	live := r.Group("/api/live")
+	live.Use(middleware.RequireOrigin(cfg.PublicBaseURL))
+	{
+		live.GET("/freescans/:id", liveHandler.HandleFreeScanLive)
+		live.GET("/scans/:id", middleware.RequireAccessCookie(cfg.JWTSecret), liveHandler.HandlePremiumScanLive)
 	}
 
 	authPublic := r.Group("/api/auth")

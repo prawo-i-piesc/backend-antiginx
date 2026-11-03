@@ -6,9 +6,11 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 // Statusy skanu, wspólne dla darmowych i premium.
@@ -40,6 +42,15 @@ type Scan struct {
 	StartedAt *time.Time `json:"started_at"`
 	// CompletedAt is the timestamp when the scan finished (nil if not completed)
 	CompletedAt *time.Time `json:"completed_at"`
+	// Tests lists the engine test IDs requested; null for scans older than this column
+	Tests datatypes.JSON `json:"tests"`
 	// Results contains all individual test results for this scan
 	Results []ScanResult `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
+}
+
+// PlannedTests zapisuje listę zleconych testów w kształcie kolumny Tests.
+func PlannedTests(tests []string) datatypes.JSON {
+	// Dla []string Marshal nie zwraca błędu.
+	list, _ := json.Marshal(tests)
+	return list
 }
