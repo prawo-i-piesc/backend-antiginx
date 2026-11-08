@@ -69,7 +69,7 @@ func testDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("otwarcie bazy testowej: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Subscription{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Subscription{}, &models.PlanGrant{}); err != nil {
 		t.Fatalf("migracja bazy testowej: %v", err)
 	}
 	return db

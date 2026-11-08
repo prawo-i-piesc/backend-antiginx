@@ -103,7 +103,7 @@ func main() {
 	// wtedy raz oznaczyć, żeby nie liczyły się w statystykach jako zdane testy.
 	noticesMarked := db.Migrator().HasColumn(&models.ScanResult{}, "notice")
 
-	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}, &models.PlanGrant{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 	if !noticesMarked {

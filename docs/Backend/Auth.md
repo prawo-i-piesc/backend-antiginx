@@ -123,8 +123,10 @@ Email verification links target the frontend `/verify-email?token=...` and expir
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/admin/users?q=&limit=&offset=` | Accounts, newest first. `q` matches email or full name (case-insensitive substring). `limit` 1–100, default 25. Returns `users`, `total`, `limit`, `offset`. |
-| `GET` | `/api/admin/users/:id` | `user` summary plus `password_set`, `passkey_mode`, `active_sessions`, `providers`, `passkeys`, `recovery_codes_remaining`, `premium_scans`. |
+| `GET` | `/api/admin/users?q=&limit=&offset=` | Accounts, newest first. `q` matches email or full name (case-insensitive substring). `limit` 1–100, default 25. Returns `users` (each with `plan`, `free` or `pro`), `total`, `limit`, `offset`. |
+| `GET` | `/api/admin/users/:id` | `user` summary plus `password_set`, `passkey_mode`, `active_sessions`, `providers`, `passkeys`, `recovery_codes_remaining`, `premium_scans` and `plan`: `{plan, subscription, grant, can_grant}`, where `subscription` is the Stripe state (`status`, `current_period_end`, `cancel_at`, `stripe_customer_id`, `synced_at`) or `null`, and `grant` the running grant (`granted_at`, `expires_at`, `granted_by`, `granted_by_email`) or `null`. |
+| `PUT` | `/api/admin/users/:id/plan-grant` | JSON `{"days": 30}` grants Pro for that many days (1–3650), `{"days": 0}` with no end; replaces an earlier grant. `409 SUBSCRIPTION_ACTIVE` while the account pays for Pro. Returns the `plan` object. Works on the admin's own account. See [Billing](./Billing.md#-granting-pro-by-hand). |
+| `DELETE` | `/api/admin/users/:id/plan-grant` | Revokes the grant (also when there is none) and returns the `plan` object. |
 | `PATCH` | `/api/admin/users/:id/role` | JSON `{"role":"admin"}` or `{"role":"user"}`; returns the updated summary. |
 | `POST` | `/api/admin/users/:id/logout` | Revokes every refresh session of the account (`204`). |
 | `DELETE` | `/api/admin/users/:id` | Deletes the account with the same cascade as `DELETE /api/auth/account` (`204`). |

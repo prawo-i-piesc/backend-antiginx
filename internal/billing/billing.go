@@ -23,7 +23,12 @@ var (
 	ErrDisabled          = errors.New("płatności są wyłączone")
 	ErrAlreadySubscribed = errors.New("użytkownik ma już aktywną subskrypcję")
 	ErrNoCustomer        = errors.New("użytkownik nie jest klientem Stripe")
+	// ErrSubscriptionActive odmawia ręcznego nadania Pro komuś, kto za nie płaci.
+	ErrSubscriptionActive = errors.New("użytkownik ma trwającą subskrypcję w Stripe")
 )
+
+// MaxGrantDays to najdłuższe nadanie na czas; dłuższe nadaje się bezterminowo.
+const MaxGrantDays = 3650
 
 // Ścieżki frontu, na które Stripe odsyła użytkownika. Po powrocie z panelu
 // front też synchronizuje stan, bo anulowanie w panelu inaczej dotarłoby do
@@ -61,18 +66,81 @@ func (s *Service) Enabled() bool {
 	return s.gateway != nil
 }
 
-// UserPlan to plan użytkownika według ostatniej synchronizacji. Nie pyta
-// Stripe, więc nadaje się do sprawdzania uprawnień przy każdym żądaniu.
+// UserPlan to plan użytkownika według ostatniej synchronizacji ze Stripe i
+// nadań od administratora. Nie pyta Stripe, więc nadaje się do sprawdzania
+// uprawnień przy każdym żądaniu.
 func UserPlan(db *gorm.DB, userID uuid.UUID) (string, error) {
 	var sub models.Subscription
 	err := db.Where("user_id = ?", userID).Take(&sub).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return models.PlanFree, nil
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.PlanFree, err
 	}
+	if err == nil && sub.Plan() == models.PlanPro {
+		return models.PlanPro, nil
+	}
+
+	grant, err := ActiveGrant(db, userID, time.Now())
 	if err != nil {
 		return models.PlanFree, err
 	}
-	return sub.Plan(), nil
+	if grant != nil {
+		return models.PlanPro, nil
+	}
+	return models.PlanFree, nil
+}
+
+// ActiveGrant zwraca obowiązujące nadanie Pro albo nil; wygasłe nie liczy się.
+func ActiveGrant(db *gorm.DB, userID uuid.UUID, now time.Time) (*models.PlanGrant, error) {
+	var grant models.PlanGrant
+	err := db.Where("user_id = ?", userID).Take(&grant).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !grant.ActiveAt(now) {
+		return nil, nil
+	}
+	return &grant, nil
+}
+
+// Grant nadaje Pro na days dni albo, przy 0, bezterminowo; kolejne nadanie
+// zastępuje poprzednie. Odmawia, gdy trwa płatna subskrypcja. O tym, czy
+// trwa, decyduje Stripe, tak jak przy Checkout: zapisany wiersz może być
+// sprzed godziny w obie strony.
+func (s *Service) Grant(ctx context.Context, userID, adminID uuid.UUID, days int) (*models.PlanGrant, error) {
+	sub, err := s.Subscription(userID)
+	if err != nil {
+		return nil, err
+	}
+	if sub != nil && s.Enabled() {
+		if sub, err = s.Sync(ctx, sub.StripeCustomerID); err != nil {
+			return nil, err
+		}
+	}
+	if sub.Plan() != models.PlanFree {
+		return nil, ErrSubscriptionActive
+	}
+
+	now := time.Now().UTC()
+	grant := models.PlanGrant{UserID: userID, GrantedBy: adminID, GrantedAt: now}
+	if days > 0 {
+		end := now.AddDate(0, 0, days)
+		grant.ExpiresAt = &end
+	}
+	if err := s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"granted_by", "granted_at", "expires_at"}),
+	}).Create(&grant).Error; err != nil {
+		return nil, err
+	}
+	return &grant, nil
+}
+
+// Revoke odbiera nadanie Pro; konto bez nadania to nie błąd.
+func (s *Service) Revoke(userID uuid.UUID) error {
+	return s.db.Where("user_id = ?", userID).Delete(&models.PlanGrant{}).Error
 }
 
 // Subscription zwraca nil, gdy użytkownik nigdy nie zaczął płatności.
@@ -106,6 +174,12 @@ func (s *Service) Checkout(ctx context.Context, user *models.User) (string, erro
 		}
 	}
 	if sub.Plan() != models.PlanFree {
+		return "", ErrAlreadySubscribed
+	}
+	// Pro nadane przez administratora: płatność niczego by nie zmieniła.
+	if grant, err := ActiveGrant(s.db, user.ID, time.Now()); err != nil {
+		return "", err
+	} else if grant != nil {
 		return "", ErrAlreadySubscribed
 	}
 

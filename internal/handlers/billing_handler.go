@@ -64,13 +64,22 @@ type BillingStatusResponse struct {
 	CancelAt         *time.Time `json:"cancel_at"`
 	// Manageable mówi, czy jest po co otwierać panel klienta Stripe.
 	Manageable bool `json:"manageable"`
+	// Granted to Pro nadane przez administratora, poza Stripe.
+	Granted bool `json:"granted"`
+	// GrantedUntil to koniec nadania; null przy bezterminowym albo bez nadania.
+	GrantedUntil *time.Time `json:"granted_until"`
 }
 
-func billingStatus(enabled bool, sub *models.Subscription) BillingStatusResponse {
+func billingStatus(enabled bool, sub *models.Subscription, grant *models.PlanGrant) BillingStatusResponse {
 	status := BillingStatusResponse{
 		Enabled: enabled,
 		Plan:    sub.Plan(),
 		Status:  models.SubscriptionStatusNone,
+	}
+	if grant != nil {
+		status.Plan = models.PlanPro
+		status.Granted = true
+		status.GrantedUntil = grant.ExpiresAt
 	}
 	if sub != nil {
 		status.Status = sub.Status
@@ -93,7 +102,13 @@ func (h *BillingHandler) HandleStatus(c *gin.Context) {
 		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
-	c.JSON(http.StatusOK, billingStatus(h.billing.Enabled(), sub))
+	grant, err := billing.ActiveGrant(h.db, userID, time.Now())
+	if err != nil {
+		log.Printf("Billing: nie udało się odczytać nadania planu %s: %v", userID, err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+	c.JSON(http.StatusOK, billingStatus(h.billing.Enabled(), sub, grant))
 }
 
 func (h *BillingHandler) HandleCheckout(c *gin.Context) {
@@ -159,7 +174,12 @@ func (h *BillingHandler) HandleSync(c *gin.Context) {
 			return
 		}
 	}
-	c.JSON(http.StatusOK, billingStatus(h.billing.Enabled(), sub))
+	grant, err := billing.ActiveGrant(h.db, userID, time.Now())
+	if err != nil {
+		failBilling(c, "Sync", err)
+		return
+	}
+	c.JSON(http.StatusOK, billingStatus(h.billing.Enabled(), sub, grant))
 }
 
 // HandleWebhook przyjmuje zdarzenia Stripe. Błąd synchronizacji kończy się
@@ -222,6 +242,8 @@ func failBilling(c *gin.Context, operation string, err error) {
 		httpx.Fail(c, httpx.CodeAlreadySubscribed)
 	case errors.Is(err, billing.ErrNoCustomer):
 		httpx.Fail(c, httpx.CodeNoBillingAccount)
+	case errors.Is(err, billing.ErrSubscriptionActive):
+		httpx.Fail(c, httpx.CodeSubscriptionActive)
 	default:
 		log.Printf("Billing %s: %v", operation, err)
 		httpx.Fail(c, httpx.CodeBillingUnavailable)

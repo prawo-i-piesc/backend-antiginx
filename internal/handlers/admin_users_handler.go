@@ -54,6 +54,12 @@ type adminUserSummary struct {
 	TOTPEnabled   bool      `json:"totp_enabled"`
 }
 
+// adminUserRow to konto na liście, razem z planem.
+type adminUserRow struct {
+	adminUserSummary
+	Plan string `json:"plan"`
+}
+
 func summarizeUser(user *models.User) adminUserSummary {
 	return adminUserSummary{
 		ID:            user.ID,
@@ -144,9 +150,24 @@ func (h *AdminHandler) HandleListUsers(c *gin.Context) {
 		return
 	}
 
-	summaries := make([]adminUserSummary, 0, len(users))
+	ids := make([]uuid.UUID, len(users))
 	for i := range users {
-		summaries = append(summaries, summarizeUser(&users[i]))
+		ids[i] = users[i].ID
+	}
+	pro, err := h.proUsers(ids)
+	if err != nil {
+		log.Printf("AdminUsers: nie udało się odczytać planów: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+
+	summaries := make([]adminUserRow, 0, len(users))
+	for i := range users {
+		plan := models.PlanFree
+		if pro[users[i].ID] {
+			plan = models.PlanPro
+		}
+		summaries = append(summaries, adminUserRow{adminUserSummary: summarizeUser(&users[i]), Plan: plan})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -191,6 +212,13 @@ func (h *AdminHandler) HandleGetUser(c *gin.Context) {
 		return
 	}
 
+	plan, err := h.planOf(user.ID)
+	if err != nil {
+		log.Printf("AdminUser: nie udało się odczytać planu konta %s: %v", user.ID, err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"user":                     summarizeUser(&user),
 		"password_set":             user.HasPassword(),
@@ -200,6 +228,7 @@ func (h *AdminHandler) HandleGetUser(c *gin.Context) {
 		"passkeys":                 passkeys,
 		"recovery_codes_remaining": recoveryCodes,
 		"premium_scans":            premiumScans,
+		"plan":                     plan,
 	})
 }
 

@@ -60,6 +60,7 @@ const (
 	CodeBillingUnavailable     Code = "BILLING_UNAVAILABLE"
 	CodeAlreadySubscribed      Code = "ALREADY_SUBSCRIBED"
 	CodeNoBillingAccount       Code = "NO_BILLING_ACCOUNT"
+	CodeSubscriptionActive     Code = "SUBSCRIPTION_ACTIVE"
 	CodeWebhookSignatureFailed Code = "WEBHOOK_SIGNATURE_INVALID"
 
 	CodeUserNotFound    Code = "USER_NOT_FOUND"
@@ -123,6 +124,7 @@ var codeTable = map[Code]codeInfo{
 	CodeBillingUnavailable:     {http.StatusBadGateway, "The payment provider is unavailable, try again later"},
 	CodeAlreadySubscribed:      {http.StatusConflict, "You already have an active subscription"},
 	CodeNoBillingAccount:       {http.StatusConflict, "This account has no billing history yet"},
+	CodeSubscriptionActive:     {http.StatusConflict, "This account pays for Pro; a grant is not needed while the subscription runs"},
 	CodeWebhookSignatureFailed: {http.StatusBadRequest, "Invalid webhook signature"},
 
 	CodeUserNotFound:    {http.StatusNotFound, "User not found"},

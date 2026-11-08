@@ -52,6 +52,7 @@ var specStatuses = map[Code]int{
 	CodeBillingUnavailable:         http.StatusBadGateway,
 	CodeAlreadySubscribed:          http.StatusConflict,
 	CodeNoBillingAccount:           http.StatusConflict,
+	CodeSubscriptionActive:         http.StatusConflict,
 	CodeWebhookSignatureFailed:     http.StatusBadRequest,
 	CodeUserNotFound:               http.StatusNotFound,
 	CodeAdminSelfAction:            http.StatusConflict,

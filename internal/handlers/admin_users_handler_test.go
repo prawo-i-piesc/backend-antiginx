@@ -31,6 +31,8 @@ func adminRouter(db *gorm.DB, adminID uuid.UUID) *gin.Engine {
 	admin.PATCH("/users/:id/role", h.HandleSetUserRole)
 	admin.POST("/users/:id/logout", h.HandleLogoutUser)
 	admin.DELETE("/users/:id", h.HandleDeleteUser)
+	admin.PUT("/users/:id/plan-grant", h.HandleGrantPro)
+	admin.DELETE("/users/:id/plan-grant", h.HandleRevokePro)
 	admin.GET("/scans", h.HandleListScans)
 	admin.GET("/scans/:id", h.HandleGetScan)
 	admin.DELETE("/scans/:id", h.HandleDeleteScan)
