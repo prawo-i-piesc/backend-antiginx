@@ -91,18 +91,16 @@ func UserPlan(db *gorm.DB, userID uuid.UUID) (string, error) {
 
 // ActiveGrant zwraca obowiązujące nadanie Pro albo nil; wygasłe nie liczy się.
 func ActiveGrant(db *gorm.DB, userID uuid.UUID, now time.Time) (*models.PlanGrant, error) {
-	var grant models.PlanGrant
-	err := db.Where("user_id = ?", userID).Take(&grant).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-	if err != nil {
+	// Find, nie Take: brak nadania to zwykła odpowiedź, a Take zapisałby ją
+	// w logu jako błąd przy każdym sprawdzeniu planu.
+	var grants []models.PlanGrant
+	if err := db.Where("user_id = ?", userID).Limit(1).Find(&grants).Error; err != nil {
 		return nil, err
 	}
-	if !grant.ActiveAt(now) {
+	if len(grants) == 0 || !grants[0].ActiveAt(now) {
 		return nil, nil
 	}
-	return &grant, nil
+	return &grants[0], nil
 }
 
 // Grant nadaje Pro na days dni albo, przy 0, bezterminowo; kolejne nadanie
