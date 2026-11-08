@@ -21,8 +21,9 @@ const (
 	// <head> mieści się w tym prawie zawsze, a reszty dokumentu nie potrzeba.
 	pageLimit = 256 << 10
 	// downloadLimit to największy plik ikony, jaki pobieramy. Większy jest od
-	// razu odrzucany, a ICO z wieloma rozmiarami mieści się z zapasem.
-	downloadLimit = 1 << 20
+	// razu odrzucany. ICO z wieloma rozmiarami mieści się z zapasem, a SVG z
+	// osadzonym obrazem z programu graficznego potrafi mieć ponad megabajt.
+	downloadLimit = 2 << 20
 	// maxAttempts to tyle kandydatów, ile najwyżej próbujemy na jedną witrynę.
 	maxAttempts  = 4
 	maxRedirects = 3

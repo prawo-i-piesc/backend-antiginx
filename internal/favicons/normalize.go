@@ -20,10 +20,10 @@ const (
 	// storedLimit to największa ikona, jaką zapisujemy. Po normalizacji zwykła
 	// ikona ma 1–5 KiB, więc to tylko bariera na wypadek dziwnego pliku.
 	storedLimit = 64 << 10
-	// decodeLimit to największy bok obrazu, który w ogóle dekodujemy. Wymiary
-	// czytamy z nagłówka przed dekodowaniem, więc mały plik udający obraz
-	// 50000×50000 nie zajmie pamięci.
-	decodeLimit = 1024
+	// decodeLimit to największy bok obrazu, który w ogóle dekodujemy (najwyżej
+	// 16 MiB pamięci). Wymiary czytamy z nagłówka przed dekodowaniem, więc mały
+	// plik udający obraz 50000×50000 nie zajmie pamięci.
+	decodeLimit = 2048
 	// maxICOEntries ogranicza katalog pliku ICO; prawdziwe mają kilka wpisów.
 	maxICOEntries = 64
 )
@@ -42,7 +42,8 @@ type Icon struct {
 //     plik z rozmiarami do 256 px waży często kilkadziesiąt razy więcej,
 //   - obraz rastrowy większy niż maxEdge jest zmniejszany i zapisywany jako PNG,
 //   - SVG przechodzi bez zmian; jego skrypty nie wykonają się ani w <img>, ani
-//     przy otwarciu adresu wprost, bo serwujemy go z CSP z sandbox.
+//     przy otwarciu adresu wprost, bo serwujemy go z CSP z sandbox,
+//   - duży SVG, który tylko opakowuje obraz rastrowy, staje się PNG (flattenSVG).
 func normalize(raw []byte) (Icon, error) {
 	var icon Icon
 	switch {
@@ -59,8 +60,13 @@ func normalize(raw []byte) (Icon, error) {
 		} else {
 			icon = Icon{ContentType: "image/x-icon", Data: entry}
 		}
-	case isSVG(raw):
+	case isSVG(raw) && len(raw) <= storedLimit:
 		icon = Icon{ContentType: "image/svg+xml", Data: raw}
+	case isSVG(raw):
+		var err error
+		if icon, err = flattenSVG(raw); err != nil {
+			return Icon{}, err
+		}
 	default:
 		ct := http.DetectContentType(raw)
 		switch ct {
