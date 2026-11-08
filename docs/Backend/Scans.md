@@ -20,6 +20,7 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `GET` | `/api/users/scans` | Bearer access JWT | List the current user's premium scans with results. |
 | `GET` | `/api/users/widgets` | Bearer access JWT | Counts (`total_scans`, `detected_threats`, `safe_sites`) and up to four `recent_scans`. |
 | `GET` | `/api/utils/tests` | Bearer access JWT | Grouped test IDs available to premium scans. |
+| `GET` | `/api/favicons/:hash` | Public | A scanned site's icon by content hash; see [Site icons](#-site-icons). |
 
 Admin routes (`/api/admin/*`) require an **admin** JWT; see [Authentication](./Auth.md#admin-operations).
 
@@ -38,7 +39,7 @@ The request requires a `target_url` pointing at a public `http(s)` host (see [Er
 {"scanId":"<uuid>","status":"PENDING"}
 ```
 
-Poll `GET /api/freescans/<uuid>`; this route is public. It returns `id`, `target_url`, `status`, `created_at`, `started_at`, `completed_at`, `tests` (the test IDs requested, null on scans older than this field) and `results`. Timestamps are null until set. `results` entries contain `id`, `scan_id`, `test_name`, `severity`, `passed`, `message` and `metadata`.
+Poll `GET /api/freescans/<uuid>`; this route is public. It returns `id`, `target_url`, `status`, `created_at`, `started_at`, `completed_at`, `tests` (the test IDs requested, null on scans older than this field), `favicon` (see [Site icons](#-site-icons)) and `results`. Timestamps are null until set. `results` entries contain `id`, `scan_id`, `test_name`, `severity`, `passed`, `message` and `metadata`.
 
 ## 🔐 Submit an account scan
 
@@ -99,6 +100,20 @@ Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different 
 A scan's final `status` is held back for a second, because messages are spread over several consumers and the end message can be committed just before the last results. A batch whose save failed can land later still, so a client should read the scan over REST once after `1000`.
 
 **How changes travel.** The transaction that saves results also sends `pg_notify('scan_events', <scanId>)`. Postgres delivers it only after the commit, and to every replica, so it does not matter which one consumed the message. Each connection then reads from the database whatever it has not sent yet. Each one also rereads every 5 seconds, so a lost notification or a dropped `LISTEN` connection only delays a result. No state is buffered per client, so a slow client cannot grow the server's memory: anything it cannot take yet stays in the database, and a write stuck for 10 seconds closes the connection.
+
+## 🖼️ Site icons
+
+Every response that shows a scan's address also carries `favicon`: the SHA-256 of the site's icon, or `null` while it is unknown. That covers `GET /api/freescans/:id`, `GET /api/scans/:id`, `GET /api/users/scans`, `recent_scans` in `GET /api/users/widgets` and `GET /api/admin/widgets`, `GET /api/users/stats/domains` and both admin scan routes. `GET /api/users/stats/risk` has one point per scan, so it carries the hashes once, as `favicons`, an object from `target_url` to hash. The image is at `GET /api/favicons/<hash>`.
+
+- **One icon per site.** A site is the host, plus the port when it is not the scheme's default; `http://` and `https://` share it. Sites with the same icon share one stored row, keyed by the hash of what is served.
+- **Fetched in the background.** Submitting a scan queues its site, and so does reading a scan whose site has no row yet, which is how scans older than this feature get icons. A request never waits for a fetch; the hash shows up on a later read. The queue holds 256 sites and two workers serve it; when full, new requests are dropped and come back on the next read.
+- **One fetch across replicas.** A worker claims a site with a single `INSERT … ON CONFLICT … RETURNING` on `site_icons`, so only one instance fetches it. A found icon is checked again after 30 days, a missing one after a day. When a site cannot be reached its stored icon stays.
+- **Discovery.** The fetcher reads up to 256 KiB of the home page (after up to three redirects), takes the `<link rel="icon">` closest to 32 px, then an SVG, an unsized one, the remaining sizes and `apple-touch-icon`, and finally `/favicon.ico`. Inline `data:` icons are used as they are. At most four candidates are tried per site, each file up to 1 MiB.
+- **Normalization.** The file's content decides its type, not the server's `Content-Type`. From an ICO only the entry closest to 32 px is kept. A raster image larger than 64 px is scaled down to 64 px and stored as PNG; dimensions above 1024 px are refused before decoding. SVG is stored as is. Stored icons are at most 64 KiB, typically 0.3–10 KiB.
+- **SSRF.** Every connection, including after a redirect, checks the IP it actually dials, so a public name resolving to a private or cluster address is refused, and no proxy from the environment is used. `ANTIGINX_ALLOW_PRIVATE_TARGETS=true` lifts this together with the target check (development only).
+- **Serving.** `GET /api/favicons/<hash>` returns the stored bytes with `Cache-Control: public, max-age=31536000, immutable` and `ETag: "<hash>"`. `If-None-Match` gets `304` without a database read. `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox` keeps an SVG opened directly from running script in the app's origin. Unknown hashes return `404 NOT_FOUND`. An icon no site points at any more is deleted when its last site changes icon.
+
+The route is public because the free scan shows icons without an account. Knowing a site's icon hash lets anyone check whether that site has been scanned on this instance; icons are public data, and the instance is reachable only inside the VPN.
 
 ## 📄 Scan reports
 

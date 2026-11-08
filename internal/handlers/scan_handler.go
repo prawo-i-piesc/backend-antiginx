@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/billing"
+	"github.com/prawo-i-piesc/backend/internal/favicons"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -44,6 +45,7 @@ type ScanHandler struct {
 	// allowPrivateTargets to ANTIGINX_ALLOW_PRIVATE_TARGETS: przepuszcza cele
 	// w sieci prywatnej i w klastrze, tylko na dev.
 	allowPrivateTargets bool
+	icons               *favicons.Service
 }
 
 func NewScanHandler(ch *amqp.Channel, db *gorm.DB, allowPrivateTargets bool) *ScanHandler {
@@ -53,6 +55,12 @@ func NewScanHandler(ch *amqp.Channel, db *gorm.DB, allowPrivateTargets bool) *Sc
 		limiter:             auth.NewRateLimiter(),
 		allowPrivateTargets: allowPrivateTargets,
 	}
+}
+
+// UseIcons włącza ikony witryn w odpowiedziach ze skanami. Bez tego pole
+// favicon zostaje puste.
+func (h *ScanHandler) UseIcons(icons *favicons.Service) {
+	h.icons = icons
 }
 
 type CreateScanRequest struct {
@@ -83,6 +91,7 @@ type UserDashboardScan struct {
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	Type      string    `json:"type"`
+	Favicon   *string   `json:"favicon"`
 }
 
 type TestCategoryGroup struct {
@@ -205,6 +214,7 @@ func (h *ScanHandler) HandleScanSubmission(c *gin.Context) {
 	if !h.queueScan(c, &models.Scan{}, newScan.ID, target, FreeScanTests, false) {
 		return
 	}
+	h.icons.Want(target.URL)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"scanId": newScan.ID.String(),
@@ -276,6 +286,7 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 	if !h.queueScan(c, &models.PremiumScan{}, newScan.ID, target, validTests, req.AntiBotDetection) {
 		return
 	}
+	h.icons.Want(target.URL)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"scanId": newScan.ID.String(),
@@ -428,6 +439,7 @@ func (h *ScanHandler) HandleGetScan(c *gin.Context) {
 		failScanLookup(c, err)
 		return
 	}
+	scan.Favicon = h.icons.Lookup(c.Request.Context(), scan.TargetURL).For(scan.TargetURL)
 
 	c.JSON(http.StatusOK, scan)
 }
@@ -448,6 +460,7 @@ func (h *ScanHandler) HandlePremiumGetScan(c *gin.Context) {
 		failScanLookup(c, err)
 		return
 	}
+	scan.Favicon = h.icons.Lookup(c.Request.Context(), scan.TargetURL).For(scan.TargetURL)
 
 	c.JSON(http.StatusOK, scan)
 }
@@ -481,6 +494,15 @@ func (h *ScanHandler) HandleUserScans(c *gin.Context) {
 		log.Printf("UserScans: nie udało się pobrać skanów: %v", err)
 		httpx.Fail(c, httpx.CodeInternal)
 		return
+	}
+
+	targets := make([]string, len(scans))
+	for i := range scans {
+		targets[i] = scans[i].TargetURL
+	}
+	icons := h.icons.Lookup(c.Request.Context(), targets...)
+	for i := range scans {
+		scans[i].Favicon = icons.For(scans[i].TargetURL)
 	}
 
 	c.JSON(http.StatusOK, scans)
@@ -530,6 +552,12 @@ func (h *ScanHandler) HandleUserDashboardWidgets(c *gin.Context) {
 		return
 	}
 
+	targets := make([]string, len(recentScans))
+	for i, s := range recentScans {
+		targets[i] = s.TargetURL
+	}
+	icons := h.icons.Lookup(c.Request.Context(), targets...)
+
 	mappedRecentScans := make([]UserDashboardScan, 0)
 	for _, s := range recentScans {
 		mappedRecentScans = append(mappedRecentScans, UserDashboardScan{
@@ -538,6 +566,7 @@ func (h *ScanHandler) HandleUserDashboardWidgets(c *gin.Context) {
 			Status:    s.Status,
 			CreatedAt: s.CreatedAt,
 			Type:      "premium",
+			Favicon:   icons.For(s.TargetURL),
 		})
 	}
 

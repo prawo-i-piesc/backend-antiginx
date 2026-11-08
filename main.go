@@ -34,6 +34,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/billing"
 	"github.com/prawo-i-piesc/backend/internal/config"
+	"github.com/prawo-i-piesc/backend/internal/favicons"
 	"github.com/prawo-i-piesc/backend/internal/handlers"
 	"github.com/prawo-i-piesc/backend/internal/live"
 	"github.com/prawo-i-piesc/backend/internal/models"
@@ -103,7 +104,7 @@ func main() {
 	// wtedy raz oznaczyć, żeby nie liczyły się w statystykach jako zdane testy.
 	noticesMarked := db.Migrator().HasColumn(&models.ScanResult{}, "notice")
 
-	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}, &models.Favicon{}, &models.SiteIcon{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 	if !noticesMarked {
@@ -167,6 +168,11 @@ func main() {
 	billingHandler := handlers.NewBillingHandler(db, billingService, cfg.StripeWebhookSecret)
 	dashboardHandler := handlers.NewDashboardHandler(db)
 
+	icons := favicons.New(db, cfg.AllowPrivateTargets)
+	scanHandler.UseIcons(icons)
+	adminHandler.UseIcons(icons)
+	dashboardHandler.UseIcons(icons)
+
 	probes := []monitoring.Probe{
 		{Name: "db", Check: sqlDB.PingContext},
 		{Name: "rabbitmq", Local: true, Check: func(context.Context) error {
@@ -189,7 +195,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":4000",
-		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, systemHandler, liveHandler, cfg, probes),
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, systemHandler, liveHandler, handlers.NewFaviconHandler(db), cfg, probes),
 		MaxHeaderBytes:    64 << 10,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -237,6 +243,12 @@ func main() {
 		billingService.Run(ctx, cfg.StripeSyncInterval)
 	}()
 
+	iconsDone := make(chan struct{})
+	go func() {
+		defer close(iconsDone)
+		icons.Run(ctx)
+	}()
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Could not start server: %v", err)
@@ -260,6 +272,7 @@ func main() {
 	<-consumerDone
 	<-failedDone
 	<-billingDone
+	<-iconsDone
 }
 
 // declareTopology deklaruje kolejki, z których korzysta daemon. Daemon sam

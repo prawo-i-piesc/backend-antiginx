@@ -46,6 +46,9 @@ type Scan struct {
 	Tests datatypes.JSON `json:"tests"`
 	// Results contains all individual test results for this scan
 	Results []ScanResult `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
+	// Favicon to hash ikony witryny (GET /api/favicons/:hash), gdy już ją mamy.
+	// Nie ma go w tabeli: handler dopisuje go przed odpowiedzią.
+	Favicon *string `gorm:"-" json:"favicon"`
 }
 
 // PlannedTests zapisuje listę zleconych testów w kształcie kolumny Tests.
