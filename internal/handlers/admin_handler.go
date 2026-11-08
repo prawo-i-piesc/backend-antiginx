@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prawo-i-piesc/backend/internal/auth"
 	"github.com/prawo-i-piesc/backend/internal/billing"
+	"github.com/prawo-i-piesc/backend/internal/favicons"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"github.com/prawo-i-piesc/backend/internal/stats"
 	"gorm.io/gorm"
@@ -17,6 +18,7 @@ type AdminHandler struct {
 	db       *gorm.DB
 	sessions *auth.SessionService
 	billing  *billing.Service
+	icons    *favicons.Service
 }
 
 type DashboardScan struct {
@@ -25,6 +27,7 @@ type DashboardScan struct {
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	Type      string    `json:"type"` // "free" lub "premium"
+	Favicon   *string   `json:"favicon"`
 }
 
 // newUsersDays to okno widgetu nowych rejestracji.
@@ -52,6 +55,11 @@ func NewAdminHandler(db *gorm.DB, sessions *auth.SessionService, billingService 
 		sessions: sessions,
 		billing:  billingService,
 	}
+}
+
+// UseIcons włącza ikony witryn przy skanach w panelu admina.
+func (h *AdminHandler) UseIcons(icons *favicons.Service) {
+	h.icons = icons
 }
 
 func (h *AdminHandler) HandleGetDashboardWidgets(c *gin.Context) {
@@ -102,6 +110,15 @@ func (h *AdminHandler) HandleGetDashboardWidgets(c *gin.Context) {
 
 	if len(combinedScans) > 4 {
 		combinedScans = combinedScans[:4]
+	}
+
+	targets := make([]string, len(combinedScans))
+	for i, s := range combinedScans {
+		targets[i] = s.TargetURL
+	}
+	icons := h.icons.Lookup(c.Request.Context(), targets...)
+	for i := range combinedScans {
+		combinedScans[i].Favicon = icons.For(combinedScans[i].TargetURL)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

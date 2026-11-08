@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prawo-i-piesc/backend/internal/favicons"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"github.com/prawo-i-piesc/backend/internal/stats"
@@ -22,11 +23,17 @@ import (
 // DashboardHandler obsługuje dane wykresów i widgetów pulpitu oraz zapis
 // preferencji konta, takich jak układ widgetów.
 type DashboardHandler struct {
-	db *gorm.DB
+	db    *gorm.DB
+	icons *favicons.Service
 }
 
 func NewDashboardHandler(db *gorm.DB) *DashboardHandler {
 	return &DashboardHandler{db: db}
+}
+
+// UseIcons włącza ikony witryn przy liście domen.
+func (h *DashboardHandler) UseIcons(icons *favicons.Service) {
+	h.icons = icons
 }
 
 const (
@@ -136,7 +143,21 @@ func (h *DashboardHandler) HandleRiskTrend(c *gin.Context) {
 		failStats(c, "risk", err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"days": query.Days, "points": points})
+
+	// Punktów jest po jednym na skan, a adresów kilka, więc ikony idą obok
+	// punktów, po adresie, a nie w każdym z nich.
+	targets := make([]string, len(points))
+	for i := range points {
+		targets[i] = points[i].TargetURL
+	}
+	icons := h.icons.Lookup(c.Request.Context(), targets...)
+	favicons := make(map[string]string)
+	for _, target := range targets {
+		if hash := icons.For(target); hash != nil {
+			favicons[target] = *hash
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"days": query.Days, "points": points, "favicons": favicons})
 }
 
 func (h *DashboardHandler) HandleSeverity(c *gin.Context) {
@@ -186,6 +207,15 @@ func (h *DashboardHandler) HandleDomains(c *gin.Context) {
 	if err != nil {
 		failStats(c, "domains", err)
 		return
+	}
+
+	targets := make([]string, len(domains))
+	for i := range domains {
+		targets[i] = domains[i].TargetURL
+	}
+	icons := h.icons.Lookup(c.Request.Context(), targets...)
+	for i := range domains {
+		domains[i].Favicon = icons.For(domains[i].TargetURL)
 	}
 	c.JSON(http.StatusOK, gin.H{"domains": domains})
 }

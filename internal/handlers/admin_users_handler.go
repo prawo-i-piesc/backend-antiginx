@@ -76,6 +76,7 @@ type adminScanRow struct {
 	// skanie darmowym i przy premium, którego konta już nie ma.
 	UserEmail *string `json:"user_email,omitempty"`
 	Type      string  `json:"type"`
+	Favicon   *string `gorm:"-" json:"favicon"`
 }
 
 // adminScanDetails to jeden skan dowolnego rodzaju razem z wynikami, bez
@@ -91,6 +92,7 @@ type adminScanDetails struct {
 	StartedAt   *time.Time          `json:"started_at"`
 	CompletedAt *time.Time          `json:"completed_at"`
 	Results     []models.ScanResult `gorm:"-" json:"results"`
+	Favicon     *string             `gorm:"-" json:"favicon"`
 }
 
 // Kolumny wspólne dla obu tabel skanów, w kolejności adminScanRow i
@@ -374,6 +376,15 @@ func (h *AdminHandler) HandleListScans(c *gin.Context) {
 		return
 	}
 
+	targets := make([]string, len(scans))
+	for i := range scans {
+		targets[i] = scans[i].TargetURL
+	}
+	icons := h.icons.Lookup(c.Request.Context(), targets...)
+	for i := range scans {
+		scans[i].Favicon = icons.For(scans[i].TargetURL)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"scans":  scans,
 		"total":  total,
@@ -412,6 +423,7 @@ func (h *AdminHandler) HandleGetScan(c *gin.Context) {
 		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
+	scan.Favicon = h.icons.Lookup(c.Request.Context(), scan.TargetURL).For(scan.TargetURL)
 
 	c.JSON(http.StatusOK, scan)
 }

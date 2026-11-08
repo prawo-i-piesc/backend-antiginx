@@ -196,6 +196,8 @@ func TopFailedTests(db *gorm.DB, f Filter, limit int) ([]TestFailures, error) {
 type Domain struct {
 	TargetURL string `json:"target_url"`
 	Scans     int    `json:"scans"`
+	// Favicon dopisuje handler; w zapytaniu go nie ma.
+	Favicon *string `gorm:"-" json:"favicon"`
 }
 
 // Domains zwraca skanowane adresy, od ostatnio skanowanego.
