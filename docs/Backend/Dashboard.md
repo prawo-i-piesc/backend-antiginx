@@ -38,9 +38,12 @@ All routes require a bearer access JWT and read the current user's **premium** s
       "failed": 2,
       "risk": 88
     }
-  ]
+  ],
+  "favicons": { "https://shop.example.com": "3f2a…" }
 }
 ```
+
+`favicons` maps each `target_url` that has a known site icon to its hash; see [Site icons](./Scans.md#-site-icons). `GET /api/users/stats/domains` carries the same as a `favicon` field on each domain.
 
 ## 🎯 Risk score
 

@@ -22,7 +22,7 @@ var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
 const maxRequestBody = 1 << 20
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, systemHandler *handlers.SystemHandler, liveHandler *handlers.LiveHandler, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, systemHandler *handlers.SystemHandler, liveHandler *handlers.LiveHandler, faviconHandler *handlers.FaviconHandler, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
@@ -61,6 +61,7 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		public.POST("/freescans", scanHandler.HandleScanSubmission)
 		public.GET("/freescans/:id", scanHandler.HandleGetScan)
 		public.GET("/freescans/:id/report", scanHandler.HandleFreeScanReport)
+		public.GET("/favicons/:hash", faviconHandler.HandleGet)
 		public.GET("/health", scanHandler.HandleHealthCheck)
 	}
 

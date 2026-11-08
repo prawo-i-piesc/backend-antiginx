@@ -69,6 +69,7 @@ func routerWithProbes(t *testing.T, cfg *config.Config, probes []monitoring.Prob
 		handlers.NewDashboardHandler(nil),
 		handlers.NewSystemHandler(nil, probes, nil, ""),
 		handlers.NewLiveHandler(nil, live.NewHub()),
+		handlers.NewFaviconHandler(nil),
 		cfg,
 		probes,
 	)
@@ -766,7 +767,7 @@ func TestAdminRoutesRejectOrdinaryUsers(t *testing.T) {
 		t.Fatalf("NewAuthHandler: %v", err)
 	}
 	r := NewRouter(handlers.NewScanHandler(nil, db, false), authHandler, handlers.NewAdminHandler(db, nil, billingService),
-		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), handlers.NewLiveHandler(db, live.NewHub()), cfg, nil)
+		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), handlers.NewLiveHandler(db, live.NewHub()), handlers.NewFaviconHandler(db), cfg, nil)
 
 	// Rola w tokenie kłamie: RequireAdmin ma patrzeć do bazy, nie w claim.
 	token, err := auth.GenerateToken(cfg.JWTSecret, auth.TokenTypeAccess, userID.String(), models.UserRoleAdmin, time.Minute)
@@ -834,7 +835,7 @@ func liveRouter(t *testing.T) (url string, cfg *config.Config, userID, premiumID
 	}
 	hub := live.NewHub()
 	r := NewRouter(handlers.NewScanHandler(nil, db, false), authHandler, handlers.NewAdminHandler(db, nil, billingService),
-		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), handlers.NewLiveHandler(db, hub), cfg, nil)
+		handlers.NewBillingHandler(db, billingService, ""), handlers.NewDashboardHandler(db), handlers.NewSystemHandler(db, nil, nil, ""), handlers.NewLiveHandler(db, hub), handlers.NewFaviconHandler(db), cfg, nil)
 
 	server := httptest.NewServer(r)
 	t.Cleanup(func() {

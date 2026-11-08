@@ -19,4 +19,6 @@ type PremiumScan struct {
 	// Tests to zlecone testy silnika; null w skanach starszych niż ta kolumna.
 	Tests   datatypes.JSON `json:"tests"`
 	Results []ScanResult   `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
+	// Favicon to hash ikony witryny, dopisywany przez handler jak w Scan.
+	Favicon *string `gorm:"-" json:"favicon"`
 }
