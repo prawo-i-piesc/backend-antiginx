@@ -95,6 +95,7 @@ func deleteUserCascade(db *gorm.DB, userID uuid.UUID) error {
 
 		for _, owned := range []any{
 			&models.Subscription{},
+			&models.PlanGrant{},
 			&models.UserPreference{},
 			&models.Session{},
 			&models.RecoveryCode{},

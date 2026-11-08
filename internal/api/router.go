@@ -210,6 +210,8 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		admin.PATCH("/users/:id/role", adminHandler.HandleSetUserRole)
 		admin.POST("/users/:id/logout", adminHandler.HandleLogoutUser)
 		admin.DELETE("/users/:id", adminHandler.HandleDeleteUser)
+		admin.PUT("/users/:id/plan-grant", adminHandler.HandleGrantPro)
+		admin.DELETE("/users/:id/plan-grant", adminHandler.HandleRevokePro)
 
 		admin.GET("/scans", adminHandler.HandleListScans)
 		admin.GET("/scans/:id", adminHandler.HandleGetScan)

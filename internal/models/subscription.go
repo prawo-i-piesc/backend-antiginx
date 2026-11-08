@@ -47,9 +47,14 @@ func (s *Subscription) Plan() string {
 // odrzuconej karcie karałoby za wygasłą kartę, nie za brak zapłaty. Po
 // ostatniej próbie Stripe sam zmienia status na canceled albo unpaid.
 func PlanForStatus(status string) string {
-	switch status {
-	case "active", "trialing", "past_due":
-		return PlanPro
+	for _, live := range LiveSubscriptionStatuses {
+		if status == live {
+			return PlanPro
+		}
 	}
 	return PlanFree
 }
+
+// LiveSubscriptionStatuses to statusy Stripe, przy których subskrypcja trwa
+// i daje Pro (zob. PlanForStatus); także do zapytań SQL.
+var LiveSubscriptionStatuses = []string{"active", "trialing", "past_due"}

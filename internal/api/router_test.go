@@ -721,6 +721,8 @@ var adminRoutes = []struct {
 	{http.MethodPatch, "/api/admin/users/" + uuid.NewString() + "/role"},
 	{http.MethodPost, "/api/admin/users/" + uuid.NewString() + "/logout"},
 	{http.MethodDelete, "/api/admin/users/" + uuid.NewString()},
+	{http.MethodPut, "/api/admin/users/" + uuid.NewString() + "/plan-grant"},
+	{http.MethodDelete, "/api/admin/users/" + uuid.NewString() + "/plan-grant"},
 	{http.MethodGet, "/api/admin/scans"},
 	{http.MethodGet, "/api/admin/scans/" + uuid.NewString()},
 	{http.MethodDelete, "/api/admin/scans/" + uuid.NewString()},

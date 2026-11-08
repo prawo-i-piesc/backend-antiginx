@@ -11,7 +11,7 @@ All routes except the webhook require a bearer access JWT and pass the origin ch
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/billing` | Current plan and subscription state, from the database. |
-| `POST` | `/api/billing/checkout` | `{"url": "https://checkout.stripe.com/..."}` to send the user to. `409 ALREADY_SUBSCRIBED` when the user already pays. |
+| `POST` | `/api/billing/checkout` | `{"url": "https://checkout.stripe.com/..."}` to send the user to. `409 ALREADY_SUBSCRIBED` when the user already pays or has Pro granted by an administrator. |
 | `POST` | `/api/billing/portal` | `{"url": "https://billing.stripe.com/..."}` for the customer portal. `409 NO_BILLING_ACCOUNT` when the user never started a payment. |
 | `POST` | `/api/billing/sync` | Fetches the state from Stripe, saves it and returns it like `GET /api/billing`. Limited to 10 calls a minute per user. |
 | `POST` | `/api/billing/webhook` | Stripe events, authenticated by the `Stripe-Signature` header. `404 BILLING_DISABLED` without `STRIPE_WEBHOOK_SECRET`. |
@@ -25,7 +25,9 @@ All routes except the webhook require a bearer access JWT and pass the origin ch
   "status": "active",
   "current_period_end": "2026-11-30T12:00:00Z",
   "cancel_at": null,
-  "manageable": true
+  "manageable": true,
+  "granted": false,
+  "granted_until": null
 }
 ```
 
@@ -34,6 +36,7 @@ All routes except the webhook require a bearer access JWT and pass the origin ch
 - `active`, `trialing` and `past_due` give Pro. `past_due` keeps Pro while Stripe retries the payment; after the last retry Stripe moves the subscription to `canceled` or `unpaid`, depending on the account's settings.
 - `cancel_at` is set once the user cancels: the subscription stays Pro until then and is not renewed.
 - `manageable` says whether the customer portal has anything to show.
+- `granted` is Pro granted by an administrator (see [Granting Pro by hand](#-granting-pro-by-hand)); `granted_until` is when it ends, `null` when it does not. A grant makes `plan` `pro` whatever `status` says.
 
 Checkout sends the user back to `PUBLIC_BASE_URL/dashboard/profile?billing=success` (or `?billing=cancel`), and the portal to `PUBLIC_BASE_URL/dashboard/profile?billing=portal`.
 
@@ -64,6 +67,17 @@ To receive webhooks locally, forward them with the Stripe CLI and use the secret
 stripe listen --forward-to localhost:3000/api/billing/webhook
 ```
 
+## 🎁 Granting Pro by hand
+
+An administrator can give an account Pro without payment, for a number of days or with no end, in the user inspector of the admin panel (`PUT /api/admin/users/:id/plan-grant`, see [Authentication](./Auth.md#admin-operations)).
+
+- A grant lives in its own table, `plan_grants`, one row per account. Stripe sync only writes `subscriptions`, so it never overwrites a grant. A new grant replaces the old one; an expired one no longer counts.
+- A grant is refused with `409 SUBSCRIPTION_ACTIVE` while the account pays for Pro. With billing on and a Stripe customer on the account, Stripe is asked first, as Checkout does, since the saved row can be up to an hour old either way.
+- While a grant lasts, Checkout answers `409 ALREADY_SUBSCRIBED`, so nobody pays for what they already have.
+- Revoking (`DELETE /api/admin/users/:id/plan-grant`) removes the grant only. A Stripe subscription is the owner's to cancel in the customer portal.
+- Grants work with billing off too, so Pro features can be tried on a server without Stripe keys. Deleting the account deletes its grant.
+- Every grant and revocation leaves an `admin=… action=plan_grant:<days>d|plan_revoke target=…` log line.
+
 ## 🔐 Gating features
 
-`billing.UserPlan(db, userID)` reads the plan from the database without calling Stripe, so it is cheap enough to check on every request. Paid features check it on the backend; the `plan` field in `/api/auth/me` is only for the interface. Today that is the Pro tests (`dir-listing`, `sensitive-files`), refused with `403 PRO_REQUIRED` on other plans; see [Scans](./Scans.md). With billing off everyone is on Free, so those tests are off too. Scheduled scans should follow the same way.
+`billing.UserPlan(db, userID)` reads the plan from the database without calling Stripe, so it is cheap enough to check on every request. Paid features check it on the backend; the `plan` field in `/api/auth/me` is only for the interface. Today that is the Pro tests (`dir-listing`, `sensitive-files`), refused with `403 PRO_REQUIRED` on other plans; see [Scans](./Scans.md). With billing off everyone without a grant is on Free, so those tests are off for them. Scheduled scans should follow the same way.
