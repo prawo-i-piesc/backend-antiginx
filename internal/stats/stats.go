@@ -71,6 +71,44 @@ type TrendPoint struct {
 	ExactRisk float64 `json:"-"`
 }
 
+// ScanRisks liczy ryzyko podanych skanów, każdego według Risk z jego
+// nieudanych wyników, tak jak RiskTrend. Komunikaty silnika się nie liczą, a
+// skan bez żadnego wyniku testu nie ma ryzyka i nie trafia do mapy. Status nie
+// gra roli: trwający skan ma ryzyko z tego, co już przyszło.
+func ScanRisks(db *gorm.DB, scanIDs []uuid.UUID) (map[uuid.UUID]int, error) {
+	risks := make(map[uuid.UUID]int, len(scanIDs))
+	if len(scanIDs) == 0 {
+		return risks, nil
+	}
+
+	var results []struct {
+		ScanID   uuid.UUID
+		TestName string
+		Severity string
+		Passed   bool
+	}
+	if err := db.Model(&models.ScanResult{}).
+		Select("scan_id", "test_name", "severity", "passed").
+		Where("scan_id IN ? AND NOT notice", scanIDs).
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	findings := make(map[uuid.UUID][]Finding, len(scanIDs))
+	for _, result := range results {
+		if _, seen := findings[result.ScanID]; !seen {
+			findings[result.ScanID] = nil
+		}
+		if !result.Passed {
+			findings[result.ScanID] = append(findings[result.ScanID], Finding{Test: result.TestName, Severity: result.Severity})
+		}
+	}
+	for id, failed := range findings {
+		risks[id] = int(math.Round(Risk(failed)))
+	}
+	return risks, nil
+}
+
 // RiskTrend zwraca zakończone skany od najstarszego, każdy z ryzykiem. Baza
 // liczy testy na skan i oddaje nieudane wyniki; ryzyko z nich liczy Risk.
 func RiskTrend(db *gorm.DB, f Filter) ([]TrendPoint, error) {

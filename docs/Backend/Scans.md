@@ -17,7 +17,7 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `GET` | `/api/scans/:id` | Bearer access JWT | Fetch the current user's account scan. |
 | `GET` | `/api/scans/:id/report` | Bearer access JWT | Download a report of the current user's account scan. |
 | `GET` (WebSocket) | `/api/live/scans/:id` | `ag_access` cookie, `Origin` checked | Follow the current user's account scan live; see [Live scan stream](#-live-scan-stream). |
-| `GET` | `/api/users/scans` | Bearer access JWT | List the current user's premium scans with results. |
+| `GET` | `/api/users/scans?q=&status=&limit=&offset=` | Bearer access JWT | A page of the current user's account scans, newest first; see [Account scan list](#-account-scan-list). |
 | `GET` | `/api/users/widgets` | Bearer access JWT | Counts (`total_scans`, `detected_threats`, `safe_sites`) and up to four `recent_scans`. |
 | `GET` | `/api/utils/tests` | Bearer access JWT | Grouped test IDs available to premium scans. |
 | `GET` | `/api/favicons/:hash` | Public | A scanned site's icon by content hash; see [Site icons](#-site-icons). |
@@ -67,7 +67,47 @@ The list has to match the engine's (`--tests` in `App/parser/config/paramregistr
 
 `dir-listing` and `sensitive-files` request paths the site does not advertise (`.env`, `.git`, backups, directories), so they need the **Pro** plan and never run in anonymous free scans. `GET /api/utils/tests` names them in each group's `pro_tests`. A scan that asks for one on another plan answers `403 PRO_REQUIRED` and nothing is queued, rather than quietly running the rest.
 
-Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different user receives `404`. `GET /api/users/scans` returns that user's scan list, while `GET /api/users/widgets` returns dashboard aggregates.
+Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different user receives `404`. `GET /api/users/scans` returns a page of that user's scans (see [Account scan list](#-account-scan-list)), while `GET /api/users/widgets` returns dashboard aggregates.
+
+## 📋 Account scan list
+
+`GET /api/users/scans` returns one page of the user's account scans, newest first. The database pages and filters it, so no request carries the whole history.
+
+| Parameter | Meaning |
+| --- | --- |
+| `q` | A part of the target address, case-insensitive; `%` and `_` match themselves. Up to 2048 characters. |
+| `status` | `active` (still `PENDING` or `RUNNING`), `COMPLETED` or `FAILED`; every status when left out. |
+| `limit` | 1–100, default 25. |
+| `offset` | Rows to skip, from 0. |
+
+```json
+{
+  "scans": [
+    {
+      "id": "01a1…",
+      "target_url": "https://shop.example.com",
+      "status": "RUNNING",
+      "created_at": "2026-11-13T10:02:11Z",
+      "started_at": "2026-11-13T10:02:12Z",
+      "completed_at": null,
+      "tests": ["https", "hsts", "csp"],
+      "answered": 2,
+      "risk": 25,
+      "favicon": "3f2a…"
+    }
+  ],
+  "total": 42,
+  "limit": 25,
+  "offset": 0
+}
+```
+
+- A row has no `results`: they are what weighs the most, and the list does not show them. `GET /api/scans/:id` has the whole scan.
+- `tests` lists the requested test IDs, `null` on scans older than that column. `answered` counts the results that name a test, which is the scan's progress, since a test has at most one result. An engine notice about a test counts, because it is that test's answer.
+- `risk` is the score from the same model as the charts (see [Dashboard](./Dashboard.md)), computed from the results so far, so a running scan has one too. It is `null` until the scan has any test outcome, and stays `null` for a scan with nothing but engine notices: a scan that checked nothing has no risk, rather than a risk of 0.
+- `risk`, `answered` and `favicon` are worked out for the rows on the page only, with one query each.
+- There is no risk filter: the score is not stored, so the database cannot filter or count by it.
+- Unknown `status` values and out-of-range `limit` or `offset` return `400 VALIDATION_FAILED`.
 
 ## 🔴 Live scan stream
 
