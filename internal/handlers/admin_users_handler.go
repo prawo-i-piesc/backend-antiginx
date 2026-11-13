@@ -14,22 +14,9 @@ import (
 	"gorm.io/gorm"
 )
 
-const adminPageDefault = 25
-
-type adminPage struct {
-	Limit  int `form:"limit" json:"limit" binding:"omitempty,min=1,max=100"`
-	Offset int `form:"offset" json:"offset" binding:"omitempty,min=0"`
-}
-
-func (p *adminPage) normalize() {
-	if p.Limit == 0 {
-		p.Limit = adminPageDefault
-	}
-}
-
 type adminUsersQuery struct {
 	Q string `form:"q" json:"q" binding:"max=320"`
-	adminPage
+	listPage
 }
 
 type adminScansQuery struct {
@@ -37,7 +24,7 @@ type adminScansQuery struct {
 	Status string `form:"status" json:"status" binding:"omitempty,oneof=PENDING RUNNING COMPLETED FAILED"`
 	UserID string `form:"user_id" json:"user_id" binding:"omitempty,uuid"`
 	Q      string `form:"q" json:"q" binding:"max=2048"`
-	adminPage
+	listPage
 }
 
 type adminRoleRequest struct {
@@ -512,8 +499,4 @@ func (h *AdminHandler) loadUserParam(c *gin.Context, user *models.User) bool {
 		return false
 	}
 	return true
-}
-
-func escapeLike(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }

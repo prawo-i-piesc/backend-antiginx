@@ -8,12 +8,13 @@ import (
 )
 
 type PremiumScan struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primary_key;" json:"id"`
-	UserID      uuid.UUID  `gorm:"type:uuid;index;index:idx_premium_scans_user_status_created,priority:1" json:"user_id"`
-	User        User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	TargetURL   string     `json:"target_url"`
-	Status      string     `gorm:"index:idx_premium_scans_user_status_created,priority:2" json:"status"`
-	CreatedAt   time.Time  `gorm:"index:idx_premium_scans_user_status_created,priority:3" json:"created_at"`
+	ID        uuid.UUID `gorm:"type:uuid;primary_key;" json:"id"`
+	UserID    uuid.UUID `gorm:"type:uuid;index;index:idx_premium_scans_user_status_created,priority:1;index:idx_premium_scans_user_created,priority:1" json:"user_id"`
+	User      User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	TargetURL string    `json:"target_url"`
+	Status    string    `gorm:"index:idx_premium_scans_user_status_created,priority:2" json:"status"`
+	// idx_premium_scans_user_created niesie listę skanów konta od najnowszych bez filtra statusu.
+	CreatedAt   time.Time  `gorm:"index:idx_premium_scans_user_status_created,priority:3;index:idx_premium_scans_user_created,priority:2" json:"created_at"`
 	StartedAt   *time.Time `json:"started_at"`
 	CompletedAt *time.Time `json:"completed_at"`
 	// Tests to zlecone testy silnika; null w skanach starszych niż ta kolumna.

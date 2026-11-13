@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,9 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/favicons"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
+	"github.com/prawo-i-piesc/backend/internal/stats"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -483,29 +486,140 @@ func failScanLookup(c *gin.Context, err error) {
 	httpx.Fail(c, httpx.CodeInternal)
 }
 
+// userScansQuery to strona listy skanów konta: fraza w adresie celu i status.
+// "active" to skany, które jeszcze trwają, czyli PENDING i RUNNING.
+type userScansQuery struct {
+	Q      string `form:"q" json:"q" binding:"max=2048"`
+	Status string `form:"status" json:"status" binding:"omitempty,oneof=active COMPLETED FAILED"`
+	listPage
+}
+
+// userScanRow to skan na liście konta: to, co lista pokazuje, bez samych
+// wyników, które ważą najwięcej. Szczegóły i wyniki daje GET /api/scans/:id.
+type userScanRow struct {
+	ID          uuid.UUID      `json:"id"`
+	TargetURL   string         `json:"target_url"`
+	Status      string         `json:"status"`
+	CreatedAt   time.Time      `json:"created_at"`
+	StartedAt   *time.Time     `json:"started_at"`
+	CompletedAt *time.Time     `json:"completed_at"`
+	Tests       datatypes.JSON `json:"tests"`
+	// Answered to wyniki z nazwą testu, czyli testy, które już odpowiedziały.
+	// Na test przypada najwyżej jeden wynik, więc to postęp skanu.
+	Answered int `gorm:"-" json:"answered"`
+	// Risk to ryzyko 0–100 według stats.Risk; null, dopóki skan nie ma żadnego
+	// wyniku testu, i w skanie z samymi komunikatami silnika.
+	Risk    *int    `gorm:"-" json:"risk"`
+	Favicon *string `gorm:"-" json:"favicon"`
+}
+
+// HandleUserScans zwraca stronę skanów konta, od najnowszych. Baza stronicuje
+// i filtruje, a postęp i ryzyko są liczone tylko dla skanów z tej strony.
 func (h *ScanHandler) HandleUserScans(c *gin.Context) {
 	userID, ok := currentUserUUID(c)
 	if !ok {
 		return
 	}
 
-	var scans []models.PremiumScan
-	if err := h.db.Preload("Results").Where("user_id = ?", userID).Find(&scans).Error; err != nil {
+	var query userScansQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		httpx.FailValidation(c, err)
+		return
+	}
+	query.normalize()
+
+	ctx := c.Request.Context()
+	filtered := func() *gorm.DB {
+		db := h.db.WithContext(ctx).Model(&models.PremiumScan{}).Where("user_id = ?", userID)
+		if q := strings.TrimSpace(query.Q); q != "" {
+			db = db.Where(`lower(target_url) LIKE ? ESCAPE '\'`, "%"+escapeLike(strings.ToLower(q))+"%")
+		}
+		switch query.Status {
+		case "active":
+			db = db.Where("status IN ?", []string{models.ScanStatusPending, models.ScanStatusRunning})
+		case "":
+		default:
+			db = db.Where("status = ?", query.Status)
+		}
+		return db
+	}
+
+	var total int64
+	if err := filtered().Count(&total).Error; err != nil {
+		log.Printf("UserScans: nie udało się policzyć skanów: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
+	}
+
+	scans := []userScanRow{}
+	if err := filtered().
+		Select("id", "target_url", "status", "created_at", "started_at", "completed_at", "tests").
+		Order("created_at DESC, id DESC").
+		Limit(query.Limit).
+		Offset(query.Offset).
+		Scan(&scans).Error; err != nil {
 		log.Printf("UserScans: nie udało się pobrać skanów: %v", err)
 		httpx.Fail(c, httpx.CodeInternal)
 		return
 	}
 
-	targets := make([]string, len(scans))
-	for i := range scans {
-		targets[i] = scans[i].TargetURL
-	}
-	icons := h.icons.Lookup(c.Request.Context(), targets...)
-	for i := range scans {
-		scans[i].Favicon = icons.For(scans[i].TargetURL)
+	if err := h.describeScans(ctx, scans); err != nil {
+		log.Printf("UserScans: nie udało się policzyć postępu i ryzyka: %v", err)
+		httpx.Fail(c, httpx.CodeInternal)
+		return
 	}
 
-	c.JSON(http.StatusOK, scans)
+	c.JSON(http.StatusOK, gin.H{
+		"scans":  scans,
+		"total":  total,
+		"limit":  query.Limit,
+		"offset": query.Offset,
+	})
+}
+
+// describeScans dopisuje do wierszy postęp, ryzyko i ikonę witryny, jednym
+// zapytaniem na każde z nich dla całej strony.
+func (h *ScanHandler) describeScans(ctx context.Context, scans []userScanRow) error {
+	if len(scans) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(scans))
+	targets := make([]string, len(scans))
+	for i := range scans {
+		ids[i] = scans[i].ID
+		targets[i] = scans[i].TargetURL
+	}
+
+	var answered []struct {
+		ScanID uuid.UUID
+		Count  int
+	}
+	if err := h.db.WithContext(ctx).Model(&models.ScanResult{}).
+		Select("scan_id, COUNT(*) AS count").
+		Where("scan_id IN ? AND test_name <> ''", ids).
+		Group("scan_id").
+		Scan(&answered).Error; err != nil {
+		return err
+	}
+	counts := make(map[uuid.UUID]int, len(answered))
+	for _, row := range answered {
+		counts[row.ScanID] = row.Count
+	}
+
+	risks, err := stats.ScanRisks(h.db.WithContext(ctx), ids)
+	if err != nil {
+		return err
+	}
+	icons := h.icons.Lookup(ctx, targets...)
+
+	for i := range scans {
+		scans[i].Answered = counts[scans[i].ID]
+		if risk, ok := risks[scans[i].ID]; ok {
+			scans[i].Risk = &risk
+		}
+		scans[i].Favicon = icons.For(scans[i].TargetURL)
+	}
+	return nil
 }
 
 func (h *ScanHandler) HandleUserDashboardWidgets(c *gin.Context) {
