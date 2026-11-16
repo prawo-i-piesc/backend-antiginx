@@ -18,8 +18,11 @@ type PremiumScan struct {
 	StartedAt   *time.Time `json:"started_at"`
 	CompletedAt *time.Time `json:"completed_at"`
 	// Tests to zlecone testy silnika; null w skanach starszych niż ta kolumna.
-	Tests   datatypes.JSON `json:"tests"`
-	Results []ScanResult   `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
+	Tests datatypes.JSON `json:"tests"`
+	// ScheduleID to harmonogram, który zlecił skan; nil przy skanie z ręki.
+	// Bez klucza obcego: historia zostaje po usunięciu harmonogramu.
+	ScheduleID *uuid.UUID   `gorm:"type:uuid;index" json:"schedule_id"`
+	Results    []ScanResult `gorm:"foreignKey:ScanID;constraint:-" json:"results"`
 	// Favicon to hash ikony witryny, dopisywany przez handler jak w Scan.
 	Favicon *string `gorm:"-" json:"favicon"`
 }

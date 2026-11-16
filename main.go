@@ -40,6 +40,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/models"
 	"github.com/prawo-i-piesc/backend/internal/monitoring"
 	"github.com/prawo-i-piesc/backend/internal/results"
+	"github.com/prawo-i-piesc/backend/internal/schedules"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -104,7 +105,7 @@ func main() {
 	// wtedy raz oznaczyć, żeby nie liczyły się w statystykach jako zdane testy.
 	noticesMarked := db.Migrator().HasColumn(&models.ScanResult{}, "notice")
 
-	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}, &models.PlanGrant{}, &models.Favicon{}, &models.SiteIcon{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.PremiumScan{}, &models.Scan{}, &models.ScanResult{}, &models.RecoveryCode{}, &models.Session{}, &models.OAuthAccount{}, &models.WebAuthnCredential{}, &models.EmailVerificationToken{}, &models.PasswordResetToken{}, &models.Subscription{}, &models.UserPreference{}, &models.PlanGrant{}, &models.Favicon{}, &models.SiteIcon{}, &models.Schedule{}); err != nil {
 		log.Fatalf("Nie udało się wykonać migracji: %v", err)
 	}
 	if !noticesMarked {
@@ -190,12 +191,14 @@ func main() {
 	}
 	systemHandler := handlers.NewSystemHandler(db, probes, prometheus, cfg.GrafanaURL)
 
+	scheduleHandler := handlers.NewScheduleHandler(db, scanHandler, cfg.ScheduleLimit)
+
 	liveHub := live.NewHub()
 	liveHandler := handlers.NewLiveHandler(db, liveHub)
 
 	srv := &http.Server{
 		Addr:              ":4000",
-		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, systemHandler, liveHandler, handlers.NewFaviconHandler(db), cfg, probes),
+		Handler:           api.NewRouter(scanHandler, authHandler, adminHandler, billingHandler, dashboardHandler, systemHandler, liveHandler, handlers.NewFaviconHandler(db), scheduleHandler, cfg, probes),
 		MaxHeaderBytes:    64 << 10,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -243,6 +246,12 @@ func main() {
 		billingService.Run(ctx, cfg.StripeSyncInterval)
 	}()
 
+	schedulerDone := make(chan struct{})
+	go func() {
+		defer close(schedulerDone)
+		schedules.NewRunner(db, scanHandler.LaunchScheduled).Run(ctx, cfg.SchedulerInterval)
+	}()
+
 	iconsDone := make(chan struct{})
 	go func() {
 		defer close(iconsDone)
@@ -273,6 +282,7 @@ func main() {
 	<-failedDone
 	<-billingDone
 	<-iconsDone
+	<-schedulerDone
 }
 
 // declareTopology deklaruje kolejki, z których korzysta daemon. Daemon sam

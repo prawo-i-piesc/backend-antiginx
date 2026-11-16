@@ -82,6 +82,7 @@ nav:
       - Overview: Backend/README.md
       - Configuration: Backend/Configuration.md
       - Scans and Results: Backend/Scans.md
+      - Scheduled Scans: Backend/Schedules.md
       - Authentication and Accounts: Backend/Auth.md
       - Billing: Backend/Billing.md
       - Dashboard Statistics: Backend/Dashboard.md

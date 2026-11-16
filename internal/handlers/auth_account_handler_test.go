@@ -29,7 +29,7 @@ func testDB(t *testing.T) *gorm.DB {
 		&models.EmailVerificationToken{}, &models.PasswordResetToken{},
 		&models.Scan{}, &models.PremiumScan{}, &models.ScanResult{},
 		&models.Subscription{}, &models.UserPreference{}, &models.PlanGrant{},
-		&models.Favicon{}, &models.SiteIcon{},
+		&models.Favicon{}, &models.SiteIcon{}, &models.Schedule{},
 	); err != nil {
 		t.Fatalf("migracja bazy testowej: %v", err)
 	}

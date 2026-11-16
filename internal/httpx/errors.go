@@ -55,6 +55,10 @@ const (
 	CodeQueueUnavailable Code = "QUEUE_UNAVAILABLE"
 	CodeScanNotFinished  Code = "SCAN_NOT_FINISHED"
 
+	CodeScheduleNotFound Code = "SCHEDULE_NOT_FOUND"
+	CodeScheduleLimit    Code = "SCHEDULE_LIMIT_REACHED"
+	CodeScheduleBlocked  Code = "SCHEDULE_BLOCKED"
+
 	CodeProRequired            Code = "PRO_REQUIRED"
 	CodeBillingDisabled        Code = "BILLING_DISABLED"
 	CodeBillingUnavailable     Code = "BILLING_UNAVAILABLE"
@@ -118,6 +122,10 @@ var codeTable = map[Code]codeInfo{
 	CodeNoValidTests:     {http.StatusBadRequest, "No valid tests provided"},
 	CodeQueueUnavailable: {http.StatusServiceUnavailable, "Scan queue is unavailable, try again later"},
 	CodeScanNotFinished:  {http.StatusConflict, "Scan has not finished yet"},
+
+	CodeScheduleNotFound: {http.StatusNotFound, "Schedule not found"},
+	CodeScheduleLimit:    {http.StatusConflict, "This account has reached its limit of schedules"},
+	CodeScheduleBlocked:  {http.StatusConflict, "An administrator has blocked this schedule"},
 
 	CodeProRequired:            {http.StatusForbidden, "This feature requires the Pro plan"},
 	CodeBillingDisabled:        {http.StatusNotFound, "Payments are not enabled on this server"},
