@@ -1,6 +1,6 @@
 module github.com/prawo-i-piesc/backend
 
-go 1.26.10
+go 1.26.11
 
 require (
 	codeberg.org/go-pdf/fpdf v0.12.0
@@ -19,11 +19,11 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/stripe/stripe-go/v87 v87.0.0
-	golang.org/x/crypto v0.57.0
+	golang.org/x/crypto v0.59.0
 	golang.org/x/image v0.47.0
-	golang.org/x/net v0.60.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.24.0
+	golang.org/x/sync v0.25.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
@@ -73,8 +73,8 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.1 // indirect
 	golang.org/x/arch v0.26.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	modernc.org/libc v1.22.5 // indirect
