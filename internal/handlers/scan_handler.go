@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"github.com/prawo-i-piesc/backend/internal/favicons"
 	"github.com/prawo-i-piesc/backend/internal/httpx"
 	"github.com/prawo-i-piesc/backend/internal/models"
+	"github.com/prawo-i-piesc/backend/internal/schedules"
 	"github.com/prawo-i-piesc/backend/internal/stats"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/datatypes"
@@ -297,6 +299,52 @@ func (h *ScanHandler) HandlePremiumScanSubmission(c *gin.Context) {
 	})
 }
 
+// LaunchScheduled zleca skan harmonogramu (schedules.Launch). Cel jest
+// sprawdzany jeszcze raz, bo nazwa mogła od zapisu zacząć wskazywać na adres
+// prywatny. Plan sprawdza scheduler, zanim tu trafi.
+func (h *ScanHandler) LaunchScheduled(ctx context.Context, schedule models.Schedule) (uuid.UUID, error) {
+	target, reason := normalizeTarget(schedule.TargetURL, h.allowPrivateTargets)
+	if reason != "" {
+		return uuid.Nil, fmt.Errorf("%w: %s", schedules.ErrInvalidTarget, reason)
+	}
+
+	var planned []string
+	if err := json.Unmarshal(schedule.Tests, &planned); err != nil {
+		return uuid.Nil, fmt.Errorf("testy harmonogramu: %w", err)
+	}
+	tests := slices.DeleteFunc(planned, func(test string) bool { return !AllowedPremiumTests[test] })
+	if len(tests) == 0 {
+		return uuid.Nil, errors.New("harmonogram nie ma żadnego znanego testu")
+	}
+
+	scanID, err := uuid.NewV7()
+	if err != nil {
+		return uuid.Nil, err
+	}
+	scheduleID := schedule.ID
+	scan := models.PremiumScan{
+		ID:         scanID,
+		UserID:     schedule.UserID,
+		TargetURL:  target.URL,
+		Status:     models.ScanStatusPending,
+		CreatedAt:  time.Now(),
+		Tests:      models.PlannedTests(tests),
+		ScheduleID: &scheduleID,
+	}
+	if err := h.db.WithContext(ctx).Create(&scan).Error; err != nil {
+		return uuid.Nil, err
+	}
+
+	if err := h.publishTask(ctx, newScanTask(scanID, target, tests, false)); err != nil {
+		if err := h.db.Model(&models.PremiumScan{}).Where("id = ?", scanID).Update("status", models.ScanStatusFailed).Error; err != nil {
+			log.Printf("Scan %s: nie udało się oznaczyć jako FAILED: %v", scanID, err)
+		}
+		return uuid.Nil, err
+	}
+	h.icons.Want(target.URL)
+	return scanID, nil
+}
+
 // mayRunTests mówi, czy plan konta obejmuje wszystkie zlecone testy. Bazę czyta
 // tylko wtedy, gdy na liście jest test z planu Pro.
 func (h *ScanHandler) mayRunTests(userID uuid.UUID, tests []string) (bool, error) {
@@ -486,11 +534,13 @@ func failScanLookup(c *gin.Context, err error) {
 	httpx.Fail(c, httpx.CodeInternal)
 }
 
-// userScansQuery to strona listy skanów konta: fraza w adresie celu i status.
-// "active" to skany, które jeszcze trwają, czyli PENDING i RUNNING.
+// userScansQuery to strona listy skanów konta: fraza w adresie celu, status
+// i harmonogram. "active" to skany, które jeszcze trwają, czyli PENDING
+// i RUNNING.
 type userScansQuery struct {
-	Q      string `form:"q" json:"q" binding:"max=2048"`
-	Status string `form:"status" json:"status" binding:"omitempty,oneof=active COMPLETED FAILED"`
+	Q        string `form:"q" json:"q" binding:"max=2048"`
+	Status   string `form:"status" json:"status" binding:"omitempty,oneof=active COMPLETED FAILED"`
+	Schedule string `form:"schedule" json:"schedule" binding:"omitempty,uuid"`
 	listPage
 }
 
@@ -504,6 +554,8 @@ type userScanRow struct {
 	StartedAt   *time.Time     `json:"started_at"`
 	CompletedAt *time.Time     `json:"completed_at"`
 	Tests       datatypes.JSON `json:"tests"`
+	// ScheduleID to harmonogram, który zlecił skan; null przy skanie z ręki.
+	ScheduleID *uuid.UUID `json:"schedule_id"`
 	// Answered to wyniki z nazwą testu, czyli testy, które już odpowiedziały.
 	// Na test przypada najwyżej jeden wynik, więc to postęp skanu.
 	Answered int `gorm:"-" json:"answered"`
@@ -534,6 +586,11 @@ func (h *ScanHandler) HandleUserScans(c *gin.Context) {
 		if q := strings.TrimSpace(query.Q); q != "" {
 			db = db.Where(`lower(target_url) LIKE ? ESCAPE '\'`, "%"+escapeLike(strings.ToLower(q))+"%")
 		}
+		if query.Schedule != "" {
+			// Walidator przepuścił tylko poprawny UUID.
+			schedule, _ := uuid.Parse(query.Schedule)
+			db = db.Where("schedule_id = ?", schedule)
+		}
 		switch query.Status {
 		case "active":
 			db = db.Where("status IN ?", []string{models.ScanStatusPending, models.ScanStatusRunning})
@@ -553,7 +610,7 @@ func (h *ScanHandler) HandleUserScans(c *gin.Context) {
 
 	scans := []userScanRow{}
 	if err := filtered().
-		Select("id", "target_url", "status", "created_at", "started_at", "completed_at", "tests").
+		Select("id", "target_url", "status", "created_at", "started_at", "completed_at", "tests", "schedule_id").
 		Order("created_at DESC, id DESC").
 		Limit(query.Limit).
 		Offset(query.Offset).

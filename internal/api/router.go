@@ -22,7 +22,7 @@ var quietPaths = []string{"/api/auth/refresh", "/healthz", "/readyz"}
 
 const maxRequestBody = 1 << 20
 
-func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, systemHandler *handlers.SystemHandler, liveHandler *handlers.LiveHandler, faviconHandler *handlers.FaviconHandler, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
+func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, billingHandler *handlers.BillingHandler, dashboardHandler *handlers.DashboardHandler, systemHandler *handlers.SystemHandler, liveHandler *handlers.LiveHandler, faviconHandler *handlers.FaviconHandler, scheduleHandler *handlers.ScheduleHandler, cfg *config.Config, probes []monitoring.Probe) *gin.Engine {
 	httpx.RegisterValidationFieldNames()
 
 	r := gin.New()
@@ -106,6 +106,8 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		protected.GET("/users/stats/domains", dashboardHandler.HandleDomains)
 		protected.GET("/users/preferences/:key", dashboardHandler.HandleGetPreference)
 		protected.GET("/utils/tests", scanHandler.HandleAvailableScans)
+		protected.GET("/schedules", scheduleHandler.HandleList)
+		protected.GET("/schedules/calendar", scheduleHandler.HandleCalendar)
 		protected.PATCH("/utils/profile/name", authHandler.HandleUpdateFullName)
 		protected.PATCH("/utils/profile/email", authHandler.HandleUpdateEmail)
 		protected.PATCH("/utils/profile/password", authHandler.HandleUpdatePassword)
@@ -186,6 +188,15 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		preferences.DELETE("/:key", dashboardHandler.HandleDeletePreference)
 	}
 
+	schedules := r.Group("/api/schedules")
+	schedules.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
+	{
+		schedules.POST("", scheduleHandler.HandleCreate)
+		schedules.PUT("/:id", scheduleHandler.HandleUpdate)
+		schedules.PATCH("/:id", scheduleHandler.HandleSetState)
+		schedules.DELETE("/:id", scheduleHandler.HandleDelete)
+	}
+
 	billing := r.Group("/api/billing")
 	billing.Use(middleware.RequireOrigin(cfg.PublicBaseURL), middleware.RequireAuth(cfg.JWTSecret))
 	{
@@ -216,6 +227,10 @@ func NewRouter(scanHandler *handlers.ScanHandler, authHandler *handlers.AuthHand
 		admin.GET("/scans", adminHandler.HandleListScans)
 		admin.GET("/scans/:id", adminHandler.HandleGetScan)
 		admin.DELETE("/scans/:id", adminHandler.HandleDeleteScan)
+
+		admin.GET("/schedules", scheduleHandler.HandleAdminList)
+		admin.PUT("/schedules/:id/block", scheduleHandler.HandleAdminBlock)
+		admin.DELETE("/schedules/:id/block", scheduleHandler.HandleAdminUnblock)
 	}
 
 	return r

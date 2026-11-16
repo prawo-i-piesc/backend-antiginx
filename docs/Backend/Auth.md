@@ -133,6 +133,9 @@ Email verification links target the frontend `/verify-email?token=...` and expir
 | `GET` | `/api/admin/scans?type=&status=&user_id=&q=&limit=&offset=` | Free and premium scans together, newest first. `type` is `free` or `premium`, `status` one of `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`. `user_id` keeps one account's scans, which leaves only premium ones; `q` matches part of the target URL (case-insensitive substring). Premium rows carry `user_id` and, while the account exists, `user_email`. |
 | `GET` | `/api/admin/scans/:id` | Any scan, free or premium and whoever owns it: the row fields plus `started_at`, `completed_at` and `results` (an empty list until the engine reports). |
 | `DELETE` | `/api/admin/scans/:id` | Deletes a free or premium scan with its results (`204`). |
+| `GET` | `/api/admin/schedules?q=&state=&user_id=&limit=&offset=` | Every account's scheduled scans, newest first; `q` matches the target or the owner's email, `state` is `active`, `paused` or `blocked`. See [Scheduled scans](./Schedules.md#-admin). |
+| `PUT` | `/api/admin/schedules/:id/block` | Blocks a schedule with an optional `reason` (up to 200 characters) the user sees; the user cannot resume it. |
+| `DELETE` | `/api/admin/schedules/:id/block` | Lifts the block. |
 | `GET` | `/api/admin/widgets` | Admin dashboard widgets. |
 | `GET` | `/api/admin/system` | Probes, scan queue and server load; see [System status](./System.md). |
 

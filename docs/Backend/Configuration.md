@@ -54,6 +54,15 @@ Billing is off unless both `STRIPE_SECRET_KEY` and `STRIPE_PRO_PRICE_ID` are set
 | `STRIPE_WEBHOOK_SECRET` | unset | Signing secret (`whsec_...`) of the webhook endpoint. Without it `/api/billing/webhook` answers `404` and the state is kept current by reconciliation alone. |
 | `STRIPE_SYNC_INTERVAL` | `1h` | How often each instance re-reads live subscriptions from Stripe. This is how renewals, cancellations and failed payments reach the database when webhooks cannot. |
 
+## 🗓️ Scheduled scans
+
+See [Scheduled scans](./Schedules.md).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SCHEDULER_INTERVAL` | `30s` | How often each instance looks for schedules whose term has come. A scan starts at most this long after its term. |
+| `SCHEDULE_LIMIT` | `10` | Most schedules one Pro account may have. |
+
 ## 🖥️ System status
 
 Both are optional. See [System status](./System.md).

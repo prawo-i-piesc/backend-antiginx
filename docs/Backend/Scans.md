@@ -17,7 +17,7 @@ All paths are relative to the backend's `:4000` HTTP server. See [Authentication
 | `GET` | `/api/scans/:id` | Bearer access JWT | Fetch the current user's account scan. |
 | `GET` | `/api/scans/:id/report` | Bearer access JWT | Download a report of the current user's account scan. |
 | `GET` (WebSocket) | `/api/live/scans/:id` | `ag_access` cookie, `Origin` checked | Follow the current user's account scan live; see [Live scan stream](#-live-scan-stream). |
-| `GET` | `/api/users/scans?q=&status=&limit=&offset=` | Bearer access JWT | A page of the current user's account scans, newest first; see [Account scan list](#-account-scan-list). |
+| `GET` | `/api/users/scans?q=&status=&schedule=&limit=&offset=` | Bearer access JWT | A page of the current user's account scans, newest first; see [Account scan list](#-account-scan-list). |
 | `GET` | `/api/users/widgets` | Bearer access JWT | Counts (`total_scans`, `detected_threats`, `safe_sites`) and up to four `recent_scans`. |
 | `GET` | `/api/utils/tests` | Bearer access JWT | Grouped test IDs available to premium scans. |
 | `GET` | `/api/favicons/:hash` | Public | A scanned site's icon by content hash; see [Site icons](#-site-icons). |
@@ -77,6 +77,7 @@ Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different 
 | --- | --- |
 | `q` | A part of the target address, case-insensitive; `%` and `_` match themselves. Up to 2048 characters. |
 | `status` | `active` (still `PENDING` or `RUNNING`), `COMPLETED` or `FAILED`; every status when left out. |
+| `schedule` | A schedule's UUID: only the scans it started. See [Scheduled scans](./Schedules.md). |
 | `limit` | 1–100, default 25. |
 | `offset` | Rows to skip, from 0. |
 
@@ -91,6 +92,7 @@ Poll `GET /api/scans/<uuid>` with the **same user's** bearer token. A different 
       "started_at": "2026-11-13T10:02:12Z",
       "completed_at": null,
       "tests": ["https", "hsts", "csp"],
+      "schedule_id": null,
       "answered": 2,
       "risk": 25,
       "favicon": "3f2a…"

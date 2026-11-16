@@ -31,6 +31,13 @@ const (
 
 const DefaultStripeSyncInterval = time.Hour
 
+// Harmonogramy: co ile scheduler sprawdza terminy i ile harmonogramów może
+// mieć konto w planie Pro.
+const (
+	DefaultSchedulerInterval = 30 * time.Second
+	DefaultScheduleLimit     = 10
+)
+
 // AllowPrivateTargetsEnv ma tę samą nazwę co przełącznik w silniku
 // (App/SSRF), żeby jedna zmienna w ConfigMapie włączała oba naraz.
 const AllowPrivateTargetsEnv = "ANTIGINX_ALLOW_PRIVATE_TARGETS"
@@ -85,6 +92,9 @@ type Config struct {
 	StripeProPriceID    string
 	StripeWebhookSecret string
 	StripeSyncInterval  time.Duration
+
+	SchedulerInterval time.Duration
+	ScheduleLimit     int
 
 	// Opcjonalne: bez PROMETHEUS_URL widok systemu w panelu admina pokazuje
 	// tylko sondy i kolejkę skanów; GRAFANA_URL dokłada link do dashboardów.
@@ -225,6 +235,13 @@ func Load() (*Config, error) {
 	}
 
 	if cfg.StripeSyncInterval, err = envDuration("STRIPE_SYNC_INTERVAL", DefaultStripeSyncInterval); err != nil {
+		problems = append(problems, err.Error())
+	}
+
+	if cfg.SchedulerInterval, err = envDuration("SCHEDULER_INTERVAL", DefaultSchedulerInterval); err != nil {
+		problems = append(problems, err.Error())
+	}
+	if cfg.ScheduleLimit, err = envPositiveInt("SCHEDULE_LIMIT", DefaultScheduleLimit); err != nil {
 		problems = append(problems, err.Error())
 	}
 
